@@ -36,7 +36,8 @@ class NewtManager {
     }
     async _requestDevice() {
         return navigator.bluetooth.requestDevice({
-            acceptAllDevices: true
+            acceptAllDevices: true,
+            optionalServices: [this.SERVICE_SMP_UUID]
         });
     }
     async connect() {
@@ -57,7 +58,7 @@ class NewtManager {
             this._smpCharacteristic.addEventListener('characteristicvaluechanged', this._smpNotification.bind(this));
             await this._smpCharacteristic.startNotifications();
         } catch (error) {
-            this._logger.info('Error: ', error.message);
+            this._logger.info(`Error: ${error.message}`);
             this._disconnected();
             return;
         }
