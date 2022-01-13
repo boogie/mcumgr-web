@@ -1,0 +1,31 @@
+.content {
+    padding: 10px 0;
+}
+
+#image-list .image {
+    background: #eee;
+    border: 1px dotted #000;
+    margin: 10px 0;
+    padding: 10px;   
+}
+
+#image-list table {
+    border-collapse: collapse;
+    border: 1px solid #700;
+}
+
+#image-list th {
+    padding: 5px;
+    text-align: left;
+    font-weight: normal;
+    font-size: 0.9em;
+    color: #fff;
+    background: #700;
+}
+
+#image-list td {
+    padding: 5px;
+    text-align: left;
+    font-size: 0.9em;
+    border-bottom: 1px solid #700;
+}

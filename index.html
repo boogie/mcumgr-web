@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <meta name="description" content="">
+    <meta name="author" content="Andras Barthazi, Benke Smith">
+    <title>newtmgr web</title>
+    <link href="css/bootstrap.min.css" rel="stylesheet">
+    <link href="css/newtmgr.css" rel="stylesheet">
+    <meta name="theme-color" content="#563d7c">
+</head>
+<body>
+<nav class="navbar navbar-expand-md navbar-dark bg-dark fixed-top">
+    <a class="navbar-brand" href="#">
+        <span id="device-name">Connect your device</span>
+    </a>
+</nav>
+<main role="main" class="container">
+
+<div class="starter-template">
+    <h1>newtmgr web</h1>
+    <div class="content" id="initial-screen">
+        <div class="form-group">
+            <button id="button-connect" type="submit" class="btn btn-primary">Connect</button>
+        </div>
+    </div>
+    <div class="content" id="connecting-screen" style="display: none;">
+        <div class="alert alert-primary" role="alert">
+            Connecting...
+          </div>
+    </div>
+    <div class="content" id="connected-screen" style="display: none;">
+        <div class="container">
+            <div id="image-list"></div>
+            <div>
+                <button id="button-echo" type="submit" class="btn btn-primary">Echo</button>
+                <button id="button-disconnect" type="submit" class="btn btn-secondary">Disconnect</button>
+                <button id="button-reset" type="submit" class="btn btn-info">Reset</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="js/sha.js"></script>
+<script src="js/cbor.js"></script>
+<script src="js/newtmgr.js"></script>
+<script src="js/index.js"></script>
+</main>
