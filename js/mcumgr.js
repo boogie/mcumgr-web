@@ -212,8 +212,6 @@ class MCUManager {
     async imageInfo(image) {
         // https://interrupt.memfault.com/blog/mcuboot-overview#mcuboot-image-binaries
 
-        const headerSize = 32;
-
         const info = {};
         const view = new Uint8Array(image);
 
@@ -232,10 +230,7 @@ class MCUManager {
             throw new Error('Invalid image (wrong load address)');
         }
 
-        // check header size is 32
-        if (view[8] !== headerSize || view[9] !== 0x00) {
-            throw new Error('Invalid image (wrong header size)');
-        }
+        const headerSize = view[8] + view[9] * 2**8;
 
         // check protected TLV area size is 0
         if (view[10] !== 0x00 || view[11] !== 0x00) {
@@ -259,8 +254,6 @@ class MCUManager {
         info.version = version;
 
         info.hash = [...new Uint8Array(await this._hash(image.slice(0, imageSize + 32)))].map(b => b.toString(16).padStart(2, '0')).join('');
-
-
 
         return info;
     }
