@@ -2,19 +2,26 @@
     padding: 10px 0;
 }
 
-#image-list .image {
-    background: #eee;
-    border: 1px dotted #000;
+.image {
+    background: #ddd;
+    border: 2px solid #aaa;
     margin: 10px 0;
     padding: 10px;   
 }
 
-#image-list table {
+.image.active {
+    background: #eee;
+    border: 2px solid #0a0;
+    margin: 10px 0;
+    padding: 8px;   
+}
+
+table {
     border-collapse: collapse;
     border: 1px solid #700;
 }
 
-#image-list th {
+table th {
     padding: 5px;
     text-align: left;
     font-weight: normal;
@@ -23,7 +30,7 @@
     background: #700;
 }
 
-#image-list td {
+table td {
     padding: 5px;
     text-align: left;
     font-size: 0.9em;
