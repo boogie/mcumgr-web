@@ -216,7 +216,7 @@ class MCUManager {
         const view = new Uint8Array(image);
 
         // check header length
-        if (view.length < headerSize) {
+        if (view.length < 32) {
             throw new Error('Invalid image (too short file)');
         }
 
