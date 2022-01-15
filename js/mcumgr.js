@@ -63,22 +63,38 @@ class MCUManager {
             this._logger.info(`Connecting to device ${this.name}...`);
             this._device.addEventListener('gattserverdisconnected', async event => {
                 this._logger.info(event);
-                this._disconnected();
+                console.log('Trying to reconnect');
+                this._connect();
             });
-            if (this._connectingCallback) this._connectingCallback();
-            const server = await this._device.gatt.connect();
-            this._logger.info(`Server connected.`);
-            this._service = await server.getPrimaryService(this.SERVICE_UUID);
-            this._logger.info(`Service connected.`);
-            this._characteristic = await this._service.getCharacteristic(this.CHARACTERISTIC_UUID);
-            this._characteristic.addEventListener('characteristicvaluechanged', this._notification.bind(this));
-            await this._characteristic.startNotifications();
+            this._connect();
         } catch (error) {
             this._logger.error(error);
             await this._disconnected();
             return;
         }
         await this._connected();
+    }
+    _connect() {
+        setTimeout(async () => {
+            try {
+                if (this._connectingCallback) this._connectingCallback();
+                const server = await this._device.gatt.connect();
+                this._logger.info(`Server connected.`);
+                this._service = await server.getPrimaryService(this.SERVICE_UUID);
+                this._logger.info(`Service connected.`);
+                this._characteristic = await this._service.getCharacteristic(this.CHARACTERISTIC_UUID);
+                this._characteristic.addEventListener('characteristicvaluechanged', this._notification.bind(this));
+                await this._characteristic.startNotifications();
+                if (this._uploadIsInProgress) {
+                    this._uploadNext();
+                }
+            } catch (error) {
+                this._logger.error(error);
+                await this._disconnected();
+                return;
+            }
+            await this._connected();
+        }, 1000);
     }
     disconnect() {
         return this._device.gatt.disconnect();

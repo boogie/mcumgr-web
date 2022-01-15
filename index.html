@@ -42,28 +42,26 @@
             <h3>Images</h3>
             <div id="image-list"></div>
             <div>
-                <button id="button-image-state" type="submit" class="btn btn-info"><i class="bi-arrow-down-circle"></i> Reload</button>
+                <button id="button-image-state" type="submit" class="btn btn-info"><i class="bi-arrow-down-circle"></i> Refresh</button>
                 <button id="button-erase" type="submit" class="btn btn-warning"><i class="bi-eraser-fill"></i> Erase</button>
             </div>
             <hr />
             <h3>Image Upload</h3>
-            <form>
+            <div class="form-group">
+                <input type="file" class="form-control" id="file-image" />
+            </div>
+            <div class="image">
                 <div class="form-group">
-                    <input type="file" class="form-control" id="file-image" />
+                    <div id="file-status">Select image file (.img)</div>
+                    <div id="file-info"></div>
                 </div>
-                <div class="image">
-                    <div class="form-group">
-                        <div id="file-info">Select image file (.img)</div>
-                    </div>
-                    <button class="btn btn-primary" id="file-upload" disabled><i class="bi-upload"></i> Upload</button>
-                </div>
-            </form>
+                <button class="btn btn-primary" id="file-upload" disabled><i class="bi-upload"></i> Upload</button>
+            </div>
         </div>
     </div>
 </div>
 
-<script src="js/sha.js"></script>
 <script src="js/cbor.js"></script>
-<script src="js/mcumgr.js?v=2"></script>
-<script src="js/index.js?v=2"></script>
+<script src="js/mcumgr.js?v=3"></script>
+<script src="js/index.js?v=3"></script>
 </main>

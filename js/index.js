@@ -13,6 +13,7 @@ const imageStateButton = document.getElementById('button-image-state');
 const eraseButton = document.getElementById('button-erase');
 const imageList = document.getElementById('image-list');
 const fileInfo = document.getElementById('file-info');
+const fileStatus = document.getElementById('file-status');
 const fileImage = document.getElementById('file-image');
 const fileUpload = document.getElementById('file-upload');
 
@@ -86,11 +87,13 @@ let fileData = null;
 let sha256sum = null;
 
 mcumgr.onImageUploadProgress(({ percentage }) => {
-    fileInfo.innerText = `Uploading... ${percentage}%`;
+    fileStatus.innerText = `Uploading... ${percentage}%`;
 });
 
 mcumgr.onImageUploadFinished(() => {
-    fileInfo.innerText = 'Upload complete';
+    fileStatus.innerText = 'Upload complete';
+    fileInfo.innerHTML = '';
+    fileImage.value = '';
     mcumgr.cmdImageState();
 });
 
@@ -117,11 +120,12 @@ fileImage.addEventListener('change', () => {
     };
     reader.readAsArrayBuffer(file);
 });
-fileUpload.addEventListener('click', () => {
+fileUpload.addEventListener('click', event => {
+    fileUpload.disabled = true;
+    event.stopPropagation();
     if (file && fileData) {
         mcumgr.cmdUpload(fileData);
     }
-    return false;
 });
 
 connectButton.addEventListener('click', async () => {
