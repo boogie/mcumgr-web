@@ -50,29 +50,38 @@ class MCUManager {
         this._buffer = new Uint8Array();
         this._logger = di.logger || { info: console.log, error: console.error };
         this._seq = 0;
+        this._userRequestedDisconnect = false;
     }
-    async _requestDevice() {
-        return navigator.bluetooth.requestDevice({
+    async _requestDevice(filters) {
+        const params = {
             acceptAllDevices: true,
             optionalServices: [this.SERVICE_UUID]
-        });
+        };
+        if (filters) {
+            params.filters = filters;
+            params.acceptAllDevices = false;
+        }
+        return navigator.bluetooth.requestDevice(params);
     }
-    async connect() {
+    async connect(filters) {
         try {
-            this._device = await this._requestDevice();
+            this._device = await this._requestDevice(filters);
             this._logger.info(`Connecting to device ${this.name}...`);
             this._device.addEventListener('gattserverdisconnected', async event => {
                 this._logger.info(event);
-                this._logger.info('Trying to reconnect');
-                this._connect();
+                if (!this._userRequestedDisconnect) {
+                    this._logger.info('Trying to reconnect');
+                    this._connect(1000);
+                } else {
+                    this._disconnected();
+                }
             });
-            this._connect();
+            this._connect(0);
         } catch (error) {
             this._logger.error(error);
             await this._disconnected();
             return;
         }
-        await this._connected();
     }
     _connect() {
         setTimeout(async () => {
@@ -85,18 +94,18 @@ class MCUManager {
                 this._characteristic = await this._service.getCharacteristic(this.CHARACTERISTIC_UUID);
                 this._characteristic.addEventListener('characteristicvaluechanged', this._notification.bind(this));
                 await this._characteristic.startNotifications();
+                await this._connected();
                 if (this._uploadIsInProgress) {
                     this._uploadNext();
                 }
             } catch (error) {
                 this._logger.error(error);
                 await this._disconnected();
-                return;
             }
-            await this._connected();
         }, 1000);
     }
     disconnect() {
+        this._userRequestedDisconnect = true;
         return this._device.gatt.disconnect();
     }
     onConnecting(callback) {
@@ -133,6 +142,7 @@ class MCUManager {
         this._service = null;
         this._characteristic = null;
         this._uploadIsInProgress = false;
+        this._userRequestedDisconnect = false;
     }
     get name() {
         return this._device && this._device.name;

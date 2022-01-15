@@ -5,6 +5,7 @@ const screens = {
 };
 
 const deviceName = document.getElementById('device-name');
+const deviceNameInput = document.getElementById('device-name-input');
 const connectButton = document.getElementById('button-connect');
 const echoButton = document.getElementById('button-echo');
 const disconnectButton = document.getElementById('button-disconnect');
@@ -23,12 +24,17 @@ let file = null;
 let fileData = null;
 let images = [];
 
+deviceNameInput.value = localStorage.getItem('deviceName');
+deviceNameInput.addEventListener('change', () => {
+    localStorage.setItem('deviceName', deviceNameInput.value);
+});
+
 const mcumgr = new MCUManager();
 mcumgr.onConnecting(() => {
     console.log('Connecting...');
-    screens.connecting.style.display = 'block';
     screens.initial.style.display = 'none';
     screens.connected.style.display = 'none';
+    screens.connecting.style.display = 'block';
 });
 mcumgr.onConnect(() => {
     deviceName.innerText = mcumgr.name;
@@ -41,12 +47,11 @@ mcumgr.onConnect(() => {
 mcumgr.onDisconnect(() => {
     deviceName.innerText = 'Connect your device';
     screens.connecting.style.display = 'none';
-    screens.initial.style.display = 'block';
     screens.connected.style.display = 'none';
+    screens.initial.style.display = 'block';
 });
 
 mcumgr.onMessage(({ op, group, id, data, length }) => {
-    console.log({ op, group, id, data, length });
     switch (group) {
         case MGMT_GROUP_ID_OS:
             switch (id) {
@@ -118,6 +123,7 @@ fileImage.addEventListener('change', () => {
             table += `<tr><th>Size</th><td>${info.imageSize} bytes</td></tr>`;
             table += `</table>`;
 
+            fileStatus.innerText = 'Ready to upload';
             fileInfo.innerHTML = table;
             fileUpload.disabled = false;
         } catch (e) {
@@ -135,7 +141,11 @@ fileUpload.addEventListener('click', event => {
 });
 
 connectButton.addEventListener('click', async () => {
-    await mcumgr.connect();
+    let filters = null;
+    if (deviceNameInput.value) {
+        filters = [{ namePrefix: deviceNameInput.value }];
+    };
+    await mcumgr.connect(filters);
 });
 
 disconnectButton.addEventListener('click', async () => {

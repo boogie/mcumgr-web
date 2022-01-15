@@ -22,8 +22,13 @@
 <div class="starter-template">
     <h1>mcumgr web</h1>
     <div class="content" id="initial-screen">
-        <div class="form-group">
-            <button id="button-connect" type="submit" class="btn btn-primary"><i class="bi-bluetooth"></i> Connect</button>
+        <div class="form-group form-inline">
+            <div class="col-auto">
+                <input id="device-name-input" type="text" class="form-control" id="device-name-input" placeholder="Device name (optional)">
+            </div>
+            <div class="col-auto">
+                <button id="button-connect" type="submit" class="btn btn-primary"><i class="bi-bluetooth"></i> Connect</button>
+            </div>
         </div>
     </div>
     <div class="content" id="connecting-screen" style="display: none;">
@@ -64,6 +69,6 @@
 </div>
 
 <script src="js/cbor.js"></script>
-<script src="js/mcumgr.js?v=4"></script>
-<script src="js/index.js?v=4"></script>
+<script src="js/mcumgr.js?v=5"></script>
+<script src="js/index.js?v=5"></script>
 </main>
