@@ -63,7 +63,7 @@ class MCUManager {
             this._logger.info(`Connecting to device ${this.name}...`);
             this._device.addEventListener('gattserverdisconnected', async event => {
                 this._logger.info(event);
-                console.log('Trying to reconnect');
+                this._logger.info('Trying to reconnect');
                 this._connect();
             });
             this._connect();
@@ -148,14 +148,14 @@ class MCUManager {
         const group_lo = group & 255;
         const group_hi = group >> 8;
         const message = [op, _flags, length_hi, length_lo, group_hi, group_lo, this._seq, id, ...encodedData];
-        console.log(message.map(x => x.toString(16).padStart(2, '0')).join(' '));
+        // console.log(message.map(x => x.toString(16).padStart(2, '0')).join(' '));
         await this._characteristic.writeValueWithoutResponse(Uint8Array.from(message));
         this._seq = (this._seq + 1) % 256;
     }
     _notification(event) {
-        console.log('message received');
+        // console.log('message received');
         const message = new Uint8Array(event.target.value.buffer);
-        console.log(message);
+        // console.log(message);
         this._buffer = new Uint8Array([...this._buffer, ...message]);
         const messageLength = this._buffer[2] * 256 + this._buffer[3];
         if (this._buffer.length < messageLength + 8) return;
@@ -185,6 +185,12 @@ class MCUManager {
     }
     cmdImageErase() {
         return this._sendMessage(MGMT_OP_WRITE, MGMT_GROUP_ID_IMAGE, IMG_MGMT_ID_ERASE, {});
+    }
+    cmdImageTest(hash) {
+        return this._sendMessage(MGMT_OP_WRITE, MGMT_GROUP_ID_IMAGE, IMG_MGMT_ID_STATE, { hash, confirm: false });
+    }
+    cmdImageConfirm(hash) {
+        return this._sendMessage(MGMT_OP_WRITE, MGMT_GROUP_ID_IMAGE, IMG_MGMT_ID_STATE, { hash, confirm: true });
     }
     _hash(image) {
         return crypto.subtle.digest('SHA-256', image);

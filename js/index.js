@@ -11,11 +11,17 @@ const disconnectButton = document.getElementById('button-disconnect');
 const resetButton = document.getElementById('button-reset');
 const imageStateButton = document.getElementById('button-image-state');
 const eraseButton = document.getElementById('button-erase');
+const testButton = document.getElementById('button-test');
+const confirmButton = document.getElementById('button-confirm');
 const imageList = document.getElementById('image-list');
 const fileInfo = document.getElementById('file-info');
 const fileStatus = document.getElementById('file-status');
 const fileImage = document.getElementById('file-image');
 const fileUpload = document.getElementById('file-upload');
+
+let file = null;
+let fileData = null;
+let images = [];
 
 const mcumgr = new MCUManager();
 mcumgr.onConnecting(() => {
@@ -58,21 +64,25 @@ mcumgr.onMessage(({ op, group, id, data, length }) => {
         case MGMT_GROUP_ID_IMAGE:
             switch (id) {
                 case IMG_MGMT_ID_STATE:
-                    let images = '';
-                    data.images.forEach(image => {
-                        images += `<div class="image ${image.active ? 'active' : 'standby'}">`;
-                        images += `<h2>Slot #${image.slot} ${image.active ? 'active' : 'standby'}</h2>`;
-                        images += '<table>';
+                    images = data.images;
+                    let imagesHTML = '';
+                    images.forEach(image => {
+                        imagesHTML += `<div class="image ${image.active ? 'active' : 'standby'}">`;
+                        imagesHTML += `<h2>Slot #${image.slot} ${image.active ? 'active' : 'standby'}</h2>`;
+                        imagesHTML += '<table>';
                         const hashStr = Array.from(image.hash).map(byte => byte.toString(16).padStart(2, '0')).join('');
-                        images += `<tr><th>Version</th><td>v${image.version}</td></tr>`;
-                        images += `<tr><th>Bootable</th><td>${image.bootable}</td></tr>`;
-                        images += `<tr><th>Confirmed</th><td>${image.confirmed}</td></tr>`;
-                        images += `<tr><th>Pending</th><td>${image.pending}</td></tr>`;
-                        images += `<tr><th>Hash</th><td>${hashStr}</td></tr>`;
-                        images += '</table>';
-                        images += '</div>';
+                        imagesHTML += `<tr><th>Version</th><td>v${image.version}</td></tr>`;
+                        imagesHTML += `<tr><th>Bootable</th><td>${image.bootable}</td></tr>`;
+                        imagesHTML += `<tr><th>Confirmed</th><td>${image.confirmed}</td></tr>`;
+                        imagesHTML += `<tr><th>Pending</th><td>${image.pending}</td></tr>`;
+                        imagesHTML += `<tr><th>Hash</th><td>${hashStr}</td></tr>`;
+                        imagesHTML += '</table>';
+                        imagesHTML += '</div>';
                     });
-                    imageList.innerHTML = images;
+                    imageList.innerHTML = imagesHTML;
+
+                    testButton.disabled = !(data.images.length > 1 && data.images[1].pending === false);
+                    confirmButton.disabled = !(data.images.length > 0 && data.images[0].confirmed === false);
                     break;
             }
             break;
@@ -81,10 +91,6 @@ mcumgr.onMessage(({ op, group, id, data, length }) => {
             break;
     }
 });
-
-let file = null;
-let fileData = null;
-let sha256sum = null;
 
 mcumgr.onImageUploadProgress(({ percentage }) => {
     fileStatus.innerText = `Uploading... ${percentage}%`;
@@ -151,4 +157,16 @@ imageStateButton.addEventListener('click', async () => {
 
 eraseButton.addEventListener('click', async () => {
     await mcumgr.cmdImageErase();
+});
+
+testButton.addEventListener('click', async () => {
+    if (images.length > 1 && images[1].pending === false) {
+        await mcumgr.cmdImageTest(images[1].hash);
+    }
+});
+
+confirmButton.addEventListener('click', async () => {
+    if (images.length > 0 && images[0].confirmed === false) {
+        await mcumgr.cmdImageConfirm(images[0].hash);
+    }
 });
