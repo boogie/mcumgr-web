@@ -158,7 +158,7 @@ class MCUManager {
         const group_lo = group & 255;
         const group_hi = group >> 8;
         const message = [op, _flags, length_hi, length_lo, group_hi, group_lo, this._seq, id, ...encodedData];
-        // console.log(message.map(x => x.toString(16).padStart(2, '0')).join(' '));
+        // console.log('>'  + message.map(x => x.toString(16).padStart(2, '0')).join(' '));
         await this._characteristic.writeValueWithoutResponse(Uint8Array.from(message));
         this._seq = (this._seq + 1) % 256;
     }
@@ -166,6 +166,7 @@ class MCUManager {
         // console.log('message received');
         const message = new Uint8Array(event.target.value.buffer);
         // console.log(message);
+        // console.log('<'  + [...message].map(x => x.toString(16).padStart(2, '0')).join(' '));
         this._buffer = new Uint8Array([...this._buffer, ...message]);
         const messageLength = this._buffer[2] * 256 + this._buffer[3];
         if (this._buffer.length < messageLength + 8) return;
@@ -178,7 +179,7 @@ class MCUManager {
         const length = length_hi * 256 + length_lo;
         const group = group_hi * 256 + group_lo;
         if (group === MGMT_GROUP_ID_IMAGE && id === IMG_MGMT_ID_UPLOAD && data.rc === 0 && data.off) {
-            this._uploadOffset = data.off;
+            this._uploadOffset = data.off;            
             this._uploadNext();
             return;
         }

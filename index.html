@@ -22,12 +22,19 @@
 <div class="starter-template">
     <h1>mcumgr web</h1>
     <div class="content" id="initial-screen">
-        <div class="form-group form-inline">
-            <div class="col-auto">
-                <input id="device-name-input" type="text" class="form-control" id="device-name-input" placeholder="Device name (optional)">
-            </div>
-            <div class="col-auto">
-                <button id="button-connect" type="submit" class="btn btn-primary"><i class="bi-bluetooth"></i> Connect</button>
+        <div class="alert alert-primary" role="alert" id="bluetooth-is-available">
+            <b><span id="bluetooth-is-available-message"></span></b>
+            This tool is compatible with desktops and laptops with the <b>latest Chrome, Opera and Edge</b> browsers, and working
+            Bluetooth connection (most laptops have them these days). 
+        </div>
+        <div id="connect-block" style="display: none;">
+            <div class="form-group form-inline">
+                <div class="col-auto">
+                    <input id="device-name-input" type="text" class="form-control" id="device-name-input" placeholder="Device name (optional)">
+                </div>
+                <div class="col-auto">
+                    <button id="button-connect" type="submit" class="btn btn-primary"><i class="bi-bluetooth"></i> Connect</button>
+                </div>
             </div>
         </div>
     </div>
@@ -69,6 +76,6 @@
 </div>
 
 <script src="js/cbor.js"></script>
-<script src="js/mcumgr.js?v=5"></script>
-<script src="js/index.js?v=5"></script>
+<script src="js/mcumgr.js?v=6"></script>
+<script src="js/index.js?v=6"></script>
 </main>

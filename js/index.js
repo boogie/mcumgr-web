@@ -19,6 +19,18 @@ const fileInfo = document.getElementById('file-info');
 const fileStatus = document.getElementById('file-status');
 const fileImage = document.getElementById('file-image');
 const fileUpload = document.getElementById('file-upload');
+const bluetoothIsAvailable = document.getElementById('bluetooth-is-available');
+const bluetoothIsAvailableMessage = document.getElementById('bluetooth-is-available-message');
+const connectBlock = document.getElementById('connect-block');
+
+if (navigator && navigator.bluetooth && navigator.bluetooth.getAvailability()) {
+    bluetoothIsAvailableMessage.innerText = 'Bluetooth is available in your browser.';
+    bluetoothIsAvailable.className = 'alert alert-success';
+    connectBlock.style.display = 'block';
+} else {
+    bluetoothIsAvailable.className = 'alert alert-danger';
+    bluetoothIsAvailableMessage.innerText = 'Bluetooth is not available in your browser.';
+}
 
 let file = null;
 let fileData = null;
