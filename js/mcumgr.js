@@ -178,7 +178,7 @@ class MCUManager {
         const data = CBOR.decode(message.slice(8).buffer);
         const length = length_hi * 256 + length_lo;
         const group = group_hi * 256 + group_lo;
-        if (group === MGMT_GROUP_ID_IMAGE && id === IMG_MGMT_ID_UPLOAD && data.rc === 0 && data.off) {
+        if (group === MGMT_GROUP_ID_IMAGE && id === IMG_MGMT_ID_UPLOAD && (data.rc === 0 || data.rc === undefined) && data.off){
             this._uploadOffset = data.off;            
             this._uploadNext();
             return;
