@@ -37,7 +37,7 @@ class MCUManager {
     constructor(di = {}) {
         this.SERVICE_UUID = '8d53dc1d-1db7-4cd3-868b-8a527460aa84';
         this.CHARACTERISTIC_UUID = 'da2e7828-fbce-4e01-ae9e-261174997c48';
-        this._mtu = 140;
+        this._mtu = 400;
         this._device = null;
         this._service = null;
         this._characteristic = null;
@@ -179,6 +179,10 @@ class MCUManager {
         const length = length_hi * 256 + length_lo;
         const group = group_hi * 256 + group_lo;
         if (group === MGMT_GROUP_ID_IMAGE && id === IMG_MGMT_ID_UPLOAD && (data.rc === 0 || data.rc === undefined) && data.off){
+            // Clear timeout since we received a response
+            if (this._uploadTimeout) {
+                clearTimeout(this._uploadTimeout);
+            }
             this._uploadOffset = data.off;            
             this._uploadNext();
             return;
@@ -213,6 +217,16 @@ class MCUManager {
             return;
         }
 
+        // Clear any existing timeout
+        if (this._uploadTimeout) {
+            clearTimeout(this._uploadTimeout);
+        }
+        // Set new timeout
+        this._uploadTimeout = setTimeout(() => {
+            this._logger.info('Upload chunk timeout, retry');
+            this._uploadNext();
+        }, 100);
+
         const nmpOverhead = 8;
         const message = { data: new Uint8Array(), off: this._uploadOffset };
         if (this._uploadOffset === 0) {
@@ -225,7 +239,8 @@ class MCUManager {
 
         message.data = new Uint8Array(this._uploadImage.slice(this._uploadOffset, this._uploadOffset + length));
 
-        this._uploadOffset += length;
+        // Keep offset for retry
+        // this._uploadOffset += length;
 
         this._sendMessage(MGMT_OP_WRITE, MGMT_GROUP_ID_IMAGE, IMG_MGMT_ID_UPLOAD, message);
     }
