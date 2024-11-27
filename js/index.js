@@ -83,7 +83,7 @@ mcumgr.onMessage(({ op, group, id, data, length }) => {
                 case IMG_MGMT_ID_STATE:
                     images = data.images;
                     let imagesHTML = '';
-                    images.forEach(image => {
+                    images?.forEach(image => {
                         imagesHTML += `<div class="image ${image.active ? 'active' : 'standby'}">`;
                         imagesHTML += `<h2>Slot #${image.slot} ${image.active ? 'active' : 'standby'}</h2>`;
                         imagesHTML += '<table>';
