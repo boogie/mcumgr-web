@@ -301,7 +301,7 @@ class MCUManager {
         const version = `${view[20]}.${view[21]}.${view[22] + view[23] * 2**8}`;
         info.version = version;
 
-        info.hash = [...new Uint8Array(await this._hash(image.slice(0, imageSize + 32)))].map(b => b.toString(16).padStart(2, '0')).join('');
+        info.hash = [...new Uint8Array(await this._hash(image.slice(0, imageSize + headerSize)))].map(b => b.toString(16).padStart(2, '0')).join('');
 
         return info;
     }
