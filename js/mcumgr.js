@@ -281,10 +281,8 @@ class MCUManager {
 
         const headerSize = view.getUint16(8, true);
 
-        // check protected TLV area size is 0
-        if (view.getUint16(10, true) !== 0x00) {
-            throw new Error('Invalid image (wrong protected TLV area size)');
-        }
+        // Protected TLV area is included in the hash
+        const protected_tlv_lenth = view.getUint16(10, true);
 
         const imageSize = view.getUint32(12, true);
         info.imageSize = imageSize;
@@ -302,7 +300,7 @@ class MCUManager {
         const version = `${view.getUint8(20)}.${view.getUint8(21)}.${view.getUint16(22, true)}`;
         info.version = version;
 
-        info.hash = [...new Uint8Array(await this._hash(image.slice(0, imageSize + headerSize)))].map(b => b.toString(16).padStart(2, '0')).join('');
+        info.hash = [...new Uint8Array(await this._hash(image.slice(0, imageSize + headerSize + protected_tlv_lenth)))].map(b => b.toString(16).padStart(2, '0')).join('');
 
         return info;
     }
