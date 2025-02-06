@@ -261,7 +261,7 @@ class MCUManager {
         // https://interrupt.memfault.com/blog/mcuboot-overview#mcuboot-image-binaries
 
         const info = {};
-        const view = new Uint8Array(image);
+        const view = new DataView(image);
 
         // check header length
         if (view.length < 32) {
@@ -269,23 +269,23 @@ class MCUManager {
         }
 
         // check MAGIC bytes 0x96f3b83d
-        if (view[0] !== 0x3d || view[1] !== 0xb8 || view[2] !== 0xf3 || view[3] !== 0x96) {
+        if (view.getUint32(0, true) !== 0x96f3b83d) {
             throw new Error('Invalid image (wrong magic bytes)');
         }
 
         // check load address is 0x00000000
-        if (view[4] !== 0x00 || view[5] !== 0x00 || view[6] !== 0x00 || view[7] !== 0x00) {
+        if (view.getUint32(4, true) != 0) {
             throw new Error('Invalid image (wrong load address)');
         }
 
-        const headerSize = view[8] + view[9] * 2**8;
+        const headerSize = view.getUint16(8, true);
 
         // check protected TLV area size is 0
-        if (view[10] !== 0x00 || view[11] !== 0x00) {
+        if (view.getUint16(10, true) !== 0x00) {
             throw new Error('Invalid image (wrong protected TLV area size)');
         }
 
-        const imageSize = view[12] + view[13] * 2**8 + view[14] * 2**16 + view[15] * 2**24;
+        const imageSize = view.getUint32(12, true);
         info.imageSize = imageSize;
 
         // check image size is correct
@@ -294,11 +294,11 @@ class MCUManager {
         }
 
         // check flags is 0x00000000
-        if (view[16] !== 0x00 || view[17] !== 0x00 || view[18] !== 0x00 || view[19] !== 0x00) {
+        if (view.getUint32(16, true) !== 0x00) {
             throw new Error('Invalid image (wrong flags)');
         }
 
-        const version = `${view[20]}.${view[21]}.${view[22] + view[23] * 2**8}`;
+        const version = `${view.getUint8(20)}.${view.getUint8(21)}.${view.getUint16(22, true)}`;
         info.version = version;
 
         info.hash = [...new Uint8Array(await this._hash(image.slice(0, imageSize + headerSize)))].map(b => b.toString(16).padStart(2, '0')).join('');
