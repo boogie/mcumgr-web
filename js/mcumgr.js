@@ -257,11 +257,25 @@ class MCUManager {
 
         this._uploadNext();
     }
+    // Given an ArrayBuffer, extract Tag-Value pairs and return them one by one.
+    *_extractTlvs(data) {
+        const view = new DataView(data);
+        let offset = 0;
+        while (offset < view.byteLength) {
+            const tag = view.getUint16(offset, true);
+            const len = view.getUint16(offset + 2, true);
+            offset += 4;
+            const data = view.buffer.slice(offset, offset + len);
+            offset += len;
+
+            yield { tag, value: new Uint8Array(data) };
+        }
+    }
     async imageInfo(image) {
         // https://interrupt.memfault.com/blog/mcuboot-overview#mcuboot-image-binaries
 
         const info = {};
-        const view = new Uint8Array(image);
+        const view = new DataView(image);
 
         // check header length
         if (view.length < 32) {
@@ -269,23 +283,21 @@ class MCUManager {
         }
 
         // check MAGIC bytes 0x96f3b83d
-        if (view[0] !== 0x3d || view[1] !== 0xb8 || view[2] !== 0xf3 || view[3] !== 0x96) {
+        if (view.getUint32(0, true) !== 0x96f3b83d) {
             throw new Error('Invalid image (wrong magic bytes)');
         }
 
         // check load address is 0x00000000
-        if (view[4] !== 0x00 || view[5] !== 0x00 || view[6] !== 0x00 || view[7] !== 0x00) {
+        if (view.getUint32(4, true) != 0) {
             throw new Error('Invalid image (wrong load address)');
         }
 
-        const headerSize = view[8] + view[9] * 2**8;
+        const headerSize = view.getUint16(8, true);
 
-        // check protected TLV area size is 0
-        if (view[10] !== 0x00 || view[11] !== 0x00) {
-            throw new Error('Invalid image (wrong protected TLV area size)');
-        }
+        // Protected TLV area is included in the hash
+        const protected_tlv_lenth = view.getUint16(10, true);
 
-        const imageSize = view[12] + view[13] * 2**8 + view[14] * 2**16 + view[15] * 2**24;
+        const imageSize = view.getUint32(12, true);
         info.imageSize = imageSize;
 
         // check image size is correct
@@ -294,14 +306,50 @@ class MCUManager {
         }
 
         // check flags is 0x00000000
-        if (view[16] !== 0x00 || view[17] !== 0x00 || view[18] !== 0x00 || view[19] !== 0x00) {
+        if (view.getUint32(16, true) !== 0x00) {
             throw new Error('Invalid image (wrong flags)');
         }
 
-        const version = `${view[20]}.${view[21]}.${view[22] + view[23] * 2**8}`;
+        const version = `${view.getUint8(20)}.${view.getUint8(21)}.${view.getUint16(22, true)}`;
         info.version = version;
 
-        info.hash = [...new Uint8Array(await this._hash(image.slice(0, imageSize + headerSize)))].map(b => b.toString(16).padStart(2, '0')).join('');
+        info.hash = [...new Uint8Array(await this._hash(image.slice(0, imageSize + headerSize + protected_tlv_lenth)))].map(b => b.toString(16).padStart(2, '0')).join('');
+
+        let offset = headerSize + imageSize;
+        let tlv_end = offset;
+
+        // Only if it was indicated that there were protected TLVs
+        if (protected_tlv_lenth > 0) {
+            // Verify the protected TLV magic bytes are valid.
+            if (view.getUint16(offset, true) !== 0x6908) {
+                throw new Error( `Expected protected TLV magic number. (0x${offset.toString(16)}: 0x${view.getUint16(offset, true).toString(16)})`);
+            }
+
+            // Find the end of the protected TLV region
+            tlv_end = view.getUint16(offset + 2, true) + offset;
+            // Store all tag-value pairs for the protected TLV region.
+            for (let tlv of this._extractTlvs(view.buffer.slice(offset + 4, tlv_end))) {
+                info.tags[tlv.tag] = tlv.value;
+            }
+            offset = tlv_end;
+        }
+
+        // The non-protected TLV region must be here.
+        if (view.getUint16(offset, true) !== 0x6907) {
+            throw new Error(`Expected TLV magic number. (0x${offset.toString(16)}: 0x${view.getUint16(offset, true).toString(16)})`);
+        }
+
+        // Also include the non-protected TLVs in the tags map.
+        // Assume there are no overlapping tag Ids.
+        tlv_end = view.getUint16(offset + 2, true) + offset;
+        for (let tlv of this._extractTlvs(view.buffer.slice(offset + 4, tlv_end))) {
+            info.tags[tlv.tag] = tlv.value;
+        }
+
+        // If the image hash tag is present, verify it matches what was calculated earlier.
+        if (16 in info.tags && info.tags[16].length == hash.length) {
+            info.hashValid = info.tags[16].every((b, i) => b === hash[i]);
+        }
 
         return info;
     }
