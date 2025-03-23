@@ -47,6 +47,7 @@ class MCUManager {
         this._messageCallback = null;
         this._imageUploadProgressCallback = null;
         this._uploadIsInProgress = false;
+        this._chunkTimeout = 500; // 500ms, if sending a chunk is not completed in this time, it will be retried (even 250ms can be too low for some devices)
         this._buffer = new Uint8Array();
         this._logger = di.logger || { info: console.log, error: console.error };
         this._seq = 0;
@@ -225,7 +226,7 @@ class MCUManager {
         this._uploadTimeout = setTimeout(() => {
             this._logger.info('Upload chunk timeout, retry');
             this._uploadNext();
-        }, 100);
+        }, this._chunkTimeout);
 
         const nmpOverhead = 8;
         const message = { data: new Uint8Array(), off: this._uploadOffset };
