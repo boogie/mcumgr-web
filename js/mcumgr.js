@@ -84,7 +84,7 @@ class MCUManager {
             return;
         }
     }
-    _connect() {
+    _connect(delay = 1000) {
         setTimeout(async () => {
             try {
                 if (this._connectingCallback) this._connectingCallback();
@@ -103,7 +103,7 @@ class MCUManager {
                 this._logger.error(error);
                 await this._disconnected();
             }
-        }, 1000);
+        }, delay);
     }
     disconnect() {
         this._userRequestedDisconnect = true;
