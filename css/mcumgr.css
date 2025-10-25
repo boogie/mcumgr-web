@@ -482,7 +482,7 @@ table tr:hover td {
 
 .upload-progress-container {
     max-width: 500px;
-    margin: 0 auto;
+    margin: 0 auto 1.5rem auto;
     text-align: center;
 }
 
@@ -491,6 +491,10 @@ table tr:hover td {
     font-weight: 500;
     margin-bottom: 0.75rem;
     color: #667eea;
+}
+
+.upload-progress-text i {
+    margin-right: 0.5rem;
 }
 
 .upload-progress-bar {
