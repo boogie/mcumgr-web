@@ -57,6 +57,7 @@ class MCUManager {
         this._logger = di.logger || { info: console.log, error: console.error };
         this._seq = 0;
         this._userRequestedDisconnect = false;
+        this._reconnectDelay = di.reconnectDelay || 1000;
     }
     async _requestDevice(filters) {
         const params = {
@@ -77,7 +78,7 @@ class MCUManager {
                 this._logger.info(event);
                 if (!this._userRequestedDisconnect) {
                     this._logger.info('Trying to reconnect');
-                    this._connect(1000);
+                    this._connect(this._reconnectDelay);
                 } else {
                     this._disconnected();
                 }
@@ -474,3 +475,35 @@ class MCUManager {
     }
 }
 
+// Export for Node.js (testing) while keeping browser compatibility
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = {
+        MCUManager,
+        MGMT_OP_READ,
+        MGMT_OP_READ_RSP,
+        MGMT_OP_WRITE,
+        MGMT_OP_WRITE_RSP,
+        MGMT_GROUP_ID_OS,
+        MGMT_GROUP_ID_IMAGE,
+        MGMT_GROUP_ID_STAT,
+        MGMT_GROUP_ID_CONFIG,
+        MGMT_GROUP_ID_LOG,
+        MGMT_GROUP_ID_CRASH,
+        MGMT_GROUP_ID_SPLIT,
+        MGMT_GROUP_ID_RUN,
+        MGMT_GROUP_ID_FS,
+        MGMT_GROUP_ID_SHELL,
+        OS_MGMT_ID_ECHO,
+        OS_MGMT_ID_CONS_ECHO_CTRL,
+        OS_MGMT_ID_TASKSTAT,
+        OS_MGMT_ID_MPSTAT,
+        OS_MGMT_ID_DATETIME_STR,
+        OS_MGMT_ID_RESET,
+        IMG_MGMT_ID_STATE,
+        IMG_MGMT_ID_UPLOAD,
+        IMG_MGMT_ID_FILE,
+        IMG_MGMT_ID_CORELIST,
+        IMG_MGMT_ID_CORELOAD,
+        IMG_MGMT_ID_ERASE
+    };
+}
