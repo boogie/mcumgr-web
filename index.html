@@ -23,7 +23,7 @@
     <!-- Initial/Login Screen -->
     <div class="content" id="initial-screen">
         <div class="row justify-content-center">
-            <div class="col-md-8 col-lg-6">
+            <div class="col-md-10 col-lg-8">
                 <div class="card shadow-lg login-card">
                     <div class="card-body p-5">
                         <div class="text-center mb-4">
@@ -41,33 +41,45 @@
                             </p>
                         </div>
 
-                        <div class="alert alert-danger" role="alert" id="connection-error" style="display: none;">
-                            <i class="bi-exclamation-triangle-fill me-2"></i>
-                            <strong>Connection Failed</strong>
+                        <div class="alert alert-danger position-relative" role="alert" id="connection-error" style="display: none; padding-right: 3rem;">
+                            <i class="bi-x-circle-fill position-absolute" id="close-connection-error" style="cursor: pointer; font-size: 1.2rem; top: 1rem; right: 1rem;"></i>
+                            <div>
+                                <i class="bi-exclamation-triangle-fill me-2"></i>
+                                <strong>Connection Failed</strong>
+                            </div>
                             <p class="mb-2 mt-2" id="connection-error-message"></p>
                             <div class="small" id="connection-error-tips">
                                 <strong>Troubleshooting tips:</strong>
-                                <ul class="mb-0 mt-1">
-                                    <li>Make sure the device is powered on and in range</li>
-                                    <li>Check if the device is already connected to another app or browser tab</li>
-                                    <li>Try forgetting the device in your OS Bluetooth settings and reconnect</li>
-                                    <li>Power cycle the device (turn it off and on)</li>
-                                    <li>Refresh this page and try again</li>
+                                <ul class="mb-0 mt-1 ps-0 list-unstyled">
+                                    <li>• Make sure the device is powered on and in range</li>
+                                    <li>• Check if the device is already connected to another app or browser tab</li>
+                                    <li>• Try forgetting the device in your OS Bluetooth settings and reconnect</li>
+                                    <li>• Power cycle the device (turn it off and on)</li>
+                                    <li>• Refresh this page and try again</li>
                                 </ul>
                             </div>
-                            <button type="button" class="btn-close position-absolute top-0 end-0 m-2" aria-label="Close" id="close-connection-error"></button>
                         </div>
 
                         <div id="connect-block" style="display: none;">
                             <div class="mb-3">
-                                <label for="device-name-input" class="form-label">Device Name (Optional)</label>
-                                <input id="device-name-input" type="text" class="form-control form-control-lg" placeholder="Enter device name">
+                                <label for="device-name-input" class="form-label">Device Name Filter (Optional)</label>
+                                <div class="form-text mb-2">Only show devices whose name starts with this prefix</div>
+                                <input id="device-name-input" type="text" class="form-control form-control-lg" placeholder="e.g., 'Quantum' to filter devices starting with Quantum">
                             </div>
                             <div class="d-grid">
                                 <button id="button-connect" type="submit" class="btn btn-primary btn-lg">
                                     <i class="bi-bluetooth me-2"></i> Connect to Device
                                 </button>
                             </div>
+                        </div>
+
+                        <div class="credits-section mt-4 pt-4 border-top border-light text-center">
+                            <p class="small text-muted mb-1">
+                                Created by <a href="https://github.com/boogie/mcumgr-web" target="_blank" class="text-decoration-none fw-semibold">András Bártházi</a>
+                            </p>
+                            <p class="small text-muted mb-0">
+                                Thanks to all <a href="https://github.com/boogie/mcumgr-web/graphs/contributors" target="_blank" class="text-decoration-none">contributors</a> for their valuable contributions
+                            </p>
                         </div>
                     </div>
                 </div>
@@ -81,8 +93,10 @@
             <div class="col-md-6">
                 <div class="card shadow-lg">
                     <div class="card-body text-center p-5">
-                        <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
-                            <span class="visually-hidden">Loading...</span>
+                        <div class="modern-spinner mb-4">
+                            <div class="spinner-circle"></div>
+                            <div class="spinner-circle"></div>
+                            <div class="spinner-circle"></div>
                         </div>
                         <h4>Connecting to device...</h4>
                         <p class="text-muted">Please wait while we establish connection</p>
@@ -102,13 +116,13 @@
             <div class="card-body">
                 <div class="d-flex gap-2 flex-wrap">
                     <button id="button-echo" type="submit" class="btn btn-outline-primary">
-                        <i class="bi-soundwave"></i> Echo
+                        <i class="bi-soundwave me-2"></i>Echo
                     </button>
                     <button id="button-reset" type="submit" class="btn btn-outline-info">
-                        <i class="bi-arrow-clockwise"></i> Reset
+                        <i class="bi-arrow-clockwise me-2"></i>Reset
                     </button>
                     <button id="button-disconnect" type="submit" class="btn btn-outline-secondary ms-auto">
-                        <i class="bi-x-square"></i> Disconnect
+                        <i class="bi-x-square me-2"></i>Disconnect
                     </button>
                 </div>
             </div>
@@ -116,23 +130,23 @@
 
         <!-- Images Card -->
         <div class="card shadow-sm mb-4">
-            <div class="card-header bg-primary text-white">
+            <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi-file-earmark-binary me-2"></i>Images</h5>
+                <button id="button-image-state" type="submit" class="btn btn-sm btn-light">
+                    <i class="bi-arrow-clockwise me-1"></i>Refresh
+                </button>
             </div>
             <div class="card-body">
                 <div id="image-list" class="mb-3"></div>
                 <div class="d-flex gap-2 flex-wrap">
-                    <button id="button-image-state" type="submit" class="btn btn-info">
-                        <i class="bi-arrow-down-circle"></i> Refresh
-                    </button>
                     <button id="button-erase" type="submit" class="btn btn-warning">
-                        <i class="bi-eraser-fill"></i> Erase
+                        <i class="bi-eraser-fill me-2"></i>Erase Slot
                     </button>
                     <button id="button-test" type="submit" class="btn btn-primary" disabled>
-                        <i class="bi-question-square"></i> Test
+                        <i class="bi-play-circle me-2"></i>Test Slot #1 on Reboot
                     </button>
                     <button id="button-confirm" type="submit" class="btn btn-success" disabled>
-                        <i class="bi-check2-square"></i> Confirm
+                        <i class="bi-check-circle me-2"></i>Make Slot #0 Permanent
                     </button>
                 </div>
             </div>
@@ -144,16 +158,20 @@
                 <h5 class="mb-0"><i class="bi-cloud-upload me-2"></i>Image Upload</h5>
             </div>
             <div class="card-body">
-                <div class="mb-3">
-                    <label for="file-image" class="form-label">Select firmware image</label>
-                    <input type="file" class="form-control" id="file-image" accept=".img" />
+                <div class="upload-drop-zone" id="upload-drop-zone">
+                    <input type="file" class="d-none" id="file-image" accept=".bin,.img" />
+                    <div class="upload-drop-content">
+                        <i class="bi-cloud-arrow-up upload-icon"></i>
+                        <h5 class="mt-3 mb-2">Drop firmware image here</h5>
+                        <p class="text-muted mb-3">or click to browse</p>
+                        <div class="upload-status-info">
+                            <div id="file-status" class="mb-2">No file selected</div>
+                            <div id="file-info" class="text-muted small"></div>
+                        </div>
+                    </div>
                 </div>
-                <div class="upload-status-card">
-                    <div id="file-status" class="mb-2">Select image file (.img)</div>
-                    <div id="file-info" class="text-muted small"></div>
-                </div>
-                <button class="btn btn-primary btn-lg mt-3" id="file-upload" disabled>
-                    <i class="bi-upload me-2"></i> Upload Firmware
+                <button class="btn btn-primary btn-lg mt-2 w-100" id="file-upload" disabled>
+                    <i class="bi-upload me-2"></i>Upload Firmware
                 </button>
             </div>
         </div>

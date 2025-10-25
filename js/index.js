@@ -25,6 +25,7 @@ const connectBlock = document.getElementById('connect-block');
 const connectionError = document.getElementById('connection-error');
 const connectionErrorMessage = document.getElementById('connection-error-message');
 const closeConnectionError = document.getElementById('close-connection-error');
+const uploadDropZone = document.getElementById('upload-drop-zone');
 
 if (navigator && navigator.bluetooth && navigator.bluetooth.getAvailability()) {
     bluetoothIsAvailableMessage.innerText = 'Bluetooth is available in your browser.';
@@ -97,25 +98,104 @@ mcumgr.onMessage(({ op, group, id, data, length }) => {
         case MGMT_GROUP_ID_IMAGE:
             switch (id) {
                 case IMG_MGMT_ID_STATE:
+                    console.log('[DEBUG] Image state response:', { op, group, id, data, length });
+
+                    if (!data) {
+                        console.error('[ERROR] No data received in image state response');
+                        return;
+                    }
+
+                    if (!data.images) {
+                        console.error('[ERROR] No images array in response data:', data);
+                        return;
+                    }
+
+                    console.log('[DEBUG] Images array:', data.images);
                     images = data.images;
                     let imagesHTML = '';
-                    images?.forEach(image => {
-                        imagesHTML += `<div class="image ${image.active ? 'active' : 'standby'}">`;
-                        imagesHTML += `<h2>Slot #${image.slot} ${image.active ? 'active' : 'standby'}</h2>`;
-                        imagesHTML += '<table>';
+
+                    const getBooleanIcon = (value) => {
+                        if (value === true) {
+                            return '<i class="bi-check-circle-fill text-success"></i>';
+                        } else if (value === false) {
+                            return '<i class="bi-x-circle-fill text-danger"></i>';
+                        }
+                        return '<i class="bi-dash-circle text-secondary"></i>';
+                    };
+
+                    images?.forEach((image, index) => {
+                        console.log(`[DEBUG] Processing image ${index}:`, image);
+
+                        if (!image.hash) {
+                            console.error(`[ERROR] Image ${index} has no hash:`, image);
+                            return;
+                        }
+
                         const hashStr = Array.from(image.hash).map(byte => byte.toString(16).padStart(2, '0')).join('');
-                        imagesHTML += `<tr><th>Version</th><td>v${image.version}</td></tr>`;
-                        imagesHTML += `<tr><th>Bootable</th><td>${image.bootable}</td></tr>`;
-                        imagesHTML += `<tr><th>Confirmed</th><td>${image.confirmed}</td></tr>`;
-                        imagesHTML += `<tr><th>Pending</th><td>${image.pending}</td></tr>`;
-                        imagesHTML += `<tr><th>Hash</th><td>${hashStr}</td></tr>`;
-                        imagesHTML += '</table>';
+                        const statusBadge = image.active ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-secondary">Standby</span>';
+
+                        imagesHTML += `<div class="image-slot ${image.active ? 'active' : 'standby'}">`;
+                        imagesHTML += `<div class="image-slot-header">`;
+                        imagesHTML += `<h3>Slot #${image.slot}</h3>`;
+                        imagesHTML += statusBadge;
+                        imagesHTML += `</div>`;
+
+                        imagesHTML += `<div class="image-slot-details">`;
+                        imagesHTML += `<div class="detail-row">`;
+                        imagesHTML += `<span class="detail-label">Version</span>`;
+                        imagesHTML += `<span class="detail-value">v${image.version}</span>`;
+                        imagesHTML += `</div>`;
+
+                        imagesHTML += `<div class="detail-row">`;
+                        imagesHTML += `<span class="detail-label">Bootable</span>`;
+                        imagesHTML += `<span class="detail-value">${getBooleanIcon(image.bootable)}</span>`;
+                        imagesHTML += `</div>`;
+
+                        imagesHTML += `<div class="detail-row">`;
+                        imagesHTML += `<span class="detail-label">Confirmed</span>`;
+                        imagesHTML += `<span class="detail-value">${getBooleanIcon(image.confirmed)}</span>`;
+                        imagesHTML += `</div>`;
+
+                        imagesHTML += `<div class="detail-row">`;
+                        imagesHTML += `<span class="detail-label">Pending</span>`;
+                        imagesHTML += `<span class="detail-value">${getBooleanIcon(image.pending)}</span>`;
+                        imagesHTML += `</div>`;
+
+                        imagesHTML += `<div class="detail-row">`;
+                        imagesHTML += `<span class="detail-label">Hash</span>`;
+                        imagesHTML += `<div class="hash-container">`;
+                        imagesHTML += `<span class="detail-value hash-value" title="${hashStr}">${hashStr.substring(0, 8)}...</span>`;
+                        imagesHTML += `<i class="bi-clipboard hash-copy-icon" data-hash="${hashStr}" title="Copy full hash"></i>`;
+                        imagesHTML += `</div>`;
+                        imagesHTML += `</div>`;
+
+                        imagesHTML += `</div>`;
                         imagesHTML += '</div>';
                     });
                     imageList.innerHTML = imagesHTML;
 
-                    testButton.disabled = !(data.images.length > 1 && data.images[1].pending === false);
-                    confirmButton.disabled = !(data.images.length > 0 && data.images[0].confirmed === false);
+                    // Add click handlers for hash copy icons
+                    document.querySelectorAll('.hash-copy-icon').forEach(icon => {
+                        icon.addEventListener('click', async () => {
+                            const hash = icon.getAttribute('data-hash');
+                            try {
+                                await navigator.clipboard.writeText(hash);
+                                icon.classList.remove('bi-clipboard');
+                                icon.classList.add('bi-clipboard-check', 'copied');
+                                setTimeout(() => {
+                                    icon.classList.remove('bi-clipboard-check', 'copied');
+                                    icon.classList.add('bi-clipboard');
+                                }, 2000);
+                            } catch (err) {
+                                console.error('Failed to copy:', err);
+                            }
+                        });
+                    });
+
+                    console.log('[DEBUG] Setting button states...');
+                    testButton.disabled = !(data.images && data.images.length > 1 && data.images[1] && data.images[1].pending === false);
+                    confirmButton.disabled = !(data.images && data.images.length > 0 && data.images[0] && data.images[0].confirmed === false);
+                    console.log('[DEBUG] Button states set - test:', testButton.disabled, 'confirm:', confirmButton.disabled);
                     break;
             }
             break;
@@ -130,32 +210,81 @@ mcumgr.onImageUploadProgress(({ percentage }) => {
 });
 
 mcumgr.onImageUploadFinished(() => {
-    fileStatus.innerText = 'Upload complete';
-    fileInfo.innerHTML = '';
+    fileStatus.innerText = 'No file selected';
+    fileInfo.innerHTML = '<span class="text-success">✓ Upload complete!</span>';
     fileImage.value = '';
+    file = null;
+    fileData = null;
+    setTimeout(() => {
+        fileInfo.innerHTML = '';
+    }, 3000);
     mcumgr.cmdImageState();
 });
 
 fileImage.addEventListener('change', () => {
     file = fileImage.files[0];
+    if (!file) return;
+
     fileData = null;
+    fileStatus.innerText = `Selected: ${file.name}`;
+    fileInfo.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div> Analyzing...';
+
     const reader = new FileReader();
     reader.onload = async () => {
         fileData = reader.result;
         try {
             const info = await mcumgr.imageInfo(fileData);
-            let table = `<table>`
-            table += `<tr><th>Version</th><td>v${info.version}</td></tr>`;
-            table += `<tr><th>Hash</th><td>${info.hash}</td></tr>`;
-            table += `<tr><th>File Size</th><td>${fileData.byteLength} bytes</td></tr>`;
-            table += `<tr><th>Size</th><td>${info.imageSize} bytes</td></tr>`;
-            table += `</table>`;
+            let infoHTML = '<div class="upload-info-grid">';
 
-            fileStatus.innerText = 'Ready to upload';
-            fileInfo.innerHTML = table;
+            infoHTML += `<div class="detail-row">`;
+            infoHTML += `<span class="detail-label">Version</span>`;
+            infoHTML += `<span class="detail-value">v${info.version}</span>`;
+            infoHTML += `</div>`;
+
+            infoHTML += `<div class="detail-row">`;
+            infoHTML += `<span class="detail-label">Hash</span>`;
+            infoHTML += `<div class="hash-container">`;
+            infoHTML += `<span class="detail-value hash-value" title="${info.hash}">${info.hash.substring(0, 8)}...</span>`;
+            infoHTML += `<i class="bi-clipboard upload-hash-copy-icon" data-hash="${info.hash}" title="Copy full hash"></i>`;
+            infoHTML += `</div>`;
+            infoHTML += `</div>`;
+
+            infoHTML += `<div class="detail-row">`;
+            infoHTML += `<span class="detail-label">File Size</span>`;
+            infoHTML += `<span class="detail-value">${fileData.byteLength.toLocaleString()} bytes</span>`;
+            infoHTML += `</div>`;
+
+            infoHTML += `<div class="detail-row">`;
+            infoHTML += `<span class="detail-label">Image Size</span>`;
+            infoHTML += `<span class="detail-value">${info.imageSize.toLocaleString()} bytes</span>`;
+            infoHTML += `</div>`;
+
+            infoHTML += '</div>';
+
+            fileStatus.innerText = `✓ ${file.name} - Ready to upload`;
+            fileInfo.innerHTML = infoHTML;
+
+            // Add click handler for upload hash copy icon
+            document.querySelector('.upload-hash-copy-icon')?.addEventListener('click', async function() {
+                const hash = this.getAttribute('data-hash');
+                try {
+                    await navigator.clipboard.writeText(hash);
+                    this.classList.remove('bi-clipboard');
+                    this.classList.add('bi-clipboard-check', 'copied');
+                    setTimeout(() => {
+                        this.classList.remove('bi-clipboard-check', 'copied');
+                        this.classList.add('bi-clipboard');
+                    }, 2000);
+                } catch (err) {
+                    console.error('Failed to copy:', err);
+                }
+            });
+
             fileUpload.disabled = false;
         } catch (e) {
-            fileInfo.innerHTML = `ERROR: ${e.message}`;
+            fileStatus.innerText = `✗ ${file.name} - Invalid file`;
+            fileInfo.innerHTML = `<span class="text-danger">ERROR: ${e.message}</span>`;
+            fileUpload.disabled = true;
         }
     };
     reader.readAsArrayBuffer(file);
@@ -165,6 +294,33 @@ fileUpload.addEventListener('click', event => {
     event.stopPropagation();
     if (file && fileData) {
         mcumgr.cmdUpload(fileData);
+    }
+});
+
+// Drag and drop functionality
+uploadDropZone.addEventListener('click', () => {
+    fileImage.click();
+});
+
+uploadDropZone.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    uploadDropZone.classList.add('drag-over');
+});
+
+uploadDropZone.addEventListener('dragleave', () => {
+    uploadDropZone.classList.remove('drag-over');
+});
+
+uploadDropZone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    uploadDropZone.classList.remove('drag-over');
+
+    const files = e.dataTransfer.files;
+    if (files.length > 0) {
+        fileImage.files = files;
+        // Trigger the change event
+        const event = new Event('change', { bubbles: true });
+        fileImage.dispatchEvent(event);
     }
 });
 

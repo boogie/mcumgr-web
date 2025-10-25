@@ -47,7 +47,7 @@ class MCUManager {
         this._messageCallback = null;
         this._imageUploadProgressCallback = null;
         this._uploadIsInProgress = false;
-        this._chunkTimeout = 500; // 500ms, if sending a chunk is not completed in this time, it will be retried (even 250ms can be too low for some devices)
+        this._chunkTimeout = 2000; // 2000ms, if sending a chunk is not completed in this time, it will be retried
         this._buffer = new Uint8Array();
         this._logger = di.logger || { info: console.log, error: console.error };
         this._seq = 0;
@@ -180,12 +180,22 @@ class MCUManager {
         const data = CBOR.decode(message.slice(8).buffer);
         const length = length_hi * 256 + length_lo;
         const group = group_hi * 256 + group_lo;
+
+        console.log('[MCUManager DEBUG] Message received:', {
+            op,
+            group,
+            id,
+            length,
+            dataKeys: data ? Object.keys(data) : 'null',
+            data: data
+        });
+
         if (group === MGMT_GROUP_ID_IMAGE && id === IMG_MGMT_ID_UPLOAD && (data.rc === 0 || data.rc === undefined) && data.off){
             // Clear timeout since we received a response
             if (this._uploadTimeout) {
                 clearTimeout(this._uploadTimeout);
             }
-            this._uploadOffset = data.off;            
+            this._uploadOffset = data.off;
             this._uploadNext();
             return;
         }
