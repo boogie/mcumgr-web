@@ -15,9 +15,11 @@ The main focus is implementing firmware updates via Web Bluetooth, however other
 
 ## Quick Start
 
-Try MCU Manager by visiting **https://boogie.github.io/mcumgr-web/** with a supported browser.
+**Online:** Try MCU Manager by visiting **https://boogie.github.io/mcumgr-web/** with a supported browser.
 
-For security reasons, Web Bluetooth only works on HTTPS addresses or localhost.
+**Local:** With the latest Chrome or Edge, simply open `index.html` directly in your browser.
+
+**Note:** When using a web server, Web Bluetooth requires HTTPS or localhost for security reasons.
 
 ## Browser Compatibility
 
@@ -70,17 +72,30 @@ The Web Bluetooth API provides the ability to connect and interact with Bluetoot
 
 ## Setting up on your machine
 
-You will need a web server to serve the files. If you have Python, just start `python -m http.server 8000` in the project's root, and you can visit http://localhost:8000/.
+**Simple Method (Chrome & Edge):**
 
-Alternatively, use Node.js:
+With the latest versions of Chrome and Edge, you can simply open `index.html` directly in your browser - no web server needed.
+
+**Web Server Method (Optional):**
+
+For other browsers or older versions, you can serve the files using a local web server:
+
+Python:
+```bash
+python -m http.server 8000
+```
+
+Node.js:
 ```bash
 npx http-server -p 8000
 ```
 
-Or PHP:
+PHP:
 ```bash
 php -S localhost:8000
 ```
+
+Then visit http://localhost:8000/
 
 ## Usage Example
 
