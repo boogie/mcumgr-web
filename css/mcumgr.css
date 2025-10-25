@@ -480,13 +480,38 @@ table tr:hover td {
     box-shadow: 0 4px 16px rgba(0,0,0,0.08);
 }
 
-.upload-status-message {
+.upload-progress-container {
+    max-width: 500px;
+    margin: 0 auto;
     text-align: center;
 }
 
-.upload-warning {
+.upload-progress-text {
+    font-size: 1rem;
+    font-weight: 500;
+    margin-bottom: 0.75rem;
+    color: #667eea;
+}
+
+.upload-progress-bar {
+    height: 8px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.3);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+
+.upload-progress-bar .progress-bar {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 8px;
+}
+
+.upload-warning-text {
+    font-size: 0.85rem;
     color: #664d03;
-    font-size: 0.875rem;
+    margin-top: 0.5rem;
 }
 
 .upload-error-tips {

@@ -227,9 +227,30 @@ mcumgr.onImageUploadProgress(({ percentage, timeoutAdjusted, newTimeout }) => {
     uploadDropSubtitle.style.display = 'none';
 
     if (timeoutAdjusted) {
-        fileStatus.innerHTML = `<div class="upload-status-message upload-warning">Uploading... ${percentage}%<br>Device is responding slowly, automatically adjusting timeout to ${newTimeout}ms...</div>`;
+        fileStatus.innerHTML = `
+            <div class="upload-progress-container">
+                <div class="upload-progress-text">
+                    <i class="bi-upload me-2"></i>Uploading... ${percentage}%
+                </div>
+                <div class="progress upload-progress-bar">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: ${percentage}%" aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <div class="upload-warning-text">
+                    <i class="bi-exclamation-circle me-1"></i>Device is responding slowly, adjusting timeout to ${newTimeout}ms...
+                </div>
+            </div>
+        `;
     } else {
-        fileStatus.innerHTML = `<div class="upload-status-message">Uploading... ${percentage}%</div>`;
+        fileStatus.innerHTML = `
+            <div class="upload-progress-container">
+                <div class="upload-progress-text">
+                    <i class="bi-upload me-2"></i>Uploading... ${percentage}%
+                </div>
+                <div class="progress upload-progress-bar">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: ${percentage}%" aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+            </div>
+        `;
     }
 });
 
@@ -295,6 +316,11 @@ mcumgr.onImageUploadError(({ error, errorCode, consecutiveTimeouts, totalTimeout
 fileImage.addEventListener('change', () => {
     file = fileImage.files[0];
     if (!file) return;
+
+    // Hide drop zone text when file is selected
+    uploadIcon.style.display = 'none';
+    uploadDropTitle.style.display = 'none';
+    uploadDropSubtitle.style.display = 'none';
 
     fileData = null;
     fileStatus.innerText = `Selected: ${file.name}`;
