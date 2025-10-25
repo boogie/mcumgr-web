@@ -450,6 +450,8 @@ table tr:hover td {
     background: rgba(255, 193, 7, 0.15);
     border-color: rgba(255, 193, 7, 0.3);
     color: #664d03;
+    font-size: 0.875rem;
+    padding: 0.75rem 1rem;
 }
 
 .alert-danger {

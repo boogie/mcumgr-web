@@ -207,8 +207,8 @@ mcumgr.onMessage(({ op, group, id, data, length }) => {
 
 mcumgr.onImageUploadProgress(({ percentage, timeoutAdjusted, newTimeout }) => {
     if (timeoutAdjusted) {
-        fileStatus.innerText = `Uploading... ${percentage}% (Device is slow, adjusting timeout to ${newTimeout}ms)`;
-        fileInfo.innerHTML = '<div class="alert alert-warning mt-2 mb-0 small"><i class="bi-exclamation-circle me-1"></i>Device is responding slowly, automatically adjusting timeout...</div>';
+        fileStatus.innerText = `Uploading... ${percentage}%`;
+        fileInfo.innerHTML = `<div class="alert alert-warning mt-3 mb-0">Device is responding slowly, automatically adjusting timeout to ${newTimeout}ms...</div>`;
         setTimeout(() => {
             if (fileInfo.innerHTML.includes('adjusting timeout')) {
                 fileInfo.innerHTML = '';
