@@ -29,36 +29,38 @@ The Web Bluetooth API provides the ability to connect and interact with Bluetoot
 |----------|---------|---------|-------|
 | **Windows** | Chrome | ✅ Full | Recommended |
 | **Windows** | Edge | ✅ Full | Chromium-based |
-| **Windows** | Opera | ✅ Full | Chromium-based |
+| **Windows** | Opera | ❌ No | Web Bluetooth disabled by default |
 | **Windows** | Firefox | ❌ No | Not implemented |
 | **macOS** | Chrome | ✅ Full | Recommended |
 | **macOS** | Edge | ✅ Full | Chromium-based |
-| **macOS** | Opera | ✅ Full | Chromium-based |
+| **macOS** | Opera | ❌ No | Web Bluetooth disabled by default |
 | **macOS** | Safari | ❌ No | Web Bluetooth not supported |
 | **macOS** | Firefox | ❌ No | Not implemented |
 | **Linux** | Chrome | ✅ Full | Recommended |
 | **Linux** | Edge | ✅ Full | Chromium-based |
-| **Linux** | Opera | ✅ Full | Chromium-based |
+| **Linux** | Opera | ❌ No | Web Bluetooth disabled by default |
 | **Linux** | Firefox | ❌ No | Not implemented |
-| **Android** | Chrome | ✅ Full | Recommended |
+| **Android** | Chrome | ⚠️ Possible | Untested, likely works |
 | **Android** | Edge | ⚠️ Possible | Untested, likely works |
 | **Android** | Opera | ⚠️ Possible | Untested, likely works |
 | **Android** | Firefox | ❌ No | Not implemented |
 | **iOS / iPadOS** | Safari | ❌ No | WebKit limitation |
 | **iOS / iPadOS** | Chrome | ❌ No | Uses WebKit engine |
 | **iOS / iPadOS** | Edge | ❌ No | Uses WebKit engine |
-| **iOS / iPadOS** | [Bluefy](https://apps.apple.com/hu/app/bluefy-web-ble-browser/id1492822055) | ✅ Full | Dedicated Web Bluetooth browser |
+| **iOS / iPadOS** | [Bluefy](https://apps.apple.com/hu/app/bluefy-web-ble-browser/id1492822055) | ⚠️ Possible | May require app updates |
 
 **Legend:**
 - ✅ **Full Support** - Tested and working
-- ⚠️ **Possible** - Should work but untested
+- ⚠️ **Possible** - Might work but untested
 - ❌ **No Support** - Web Bluetooth not available
 
 **Notes:**
 - Safari, Chrome, Edge, and Opera on iOS use the Safari WebKit engine, which does not support Web Bluetooth
 - Desktop and mobile Firefox have not implemented Web Bluetooth
-- For the best experience, use the latest version of Chrome, Edge, or Opera
-- On iOS/iPadOS, use the [Bluefy browser](https://apps.apple.com/hu/app/bluefy-web-ble-browser/id1492822055)
+- Opera has Web Bluetooth disabled by default and cannot be enabled
+- For the best experience, use the latest version of Chrome or Edge
+- Android Chrome should work but is untested
+- On iOS/iPadOS, Bluefy may work but might require updates
 
 ## Documentation
 
