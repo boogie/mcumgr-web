@@ -537,6 +537,7 @@ table tr:hover td {
 
 .file-selected-status i {
     color: #6c757d;
+    margin-right: 0.5rem;
 }
 
 .file-ready-status {
@@ -547,6 +548,7 @@ table tr:hover td {
 
 .file-ready-status i {
     color: #198754;
+    margin-right: 0.5rem;
 }
 
 .file-error-status {
@@ -557,6 +559,7 @@ table tr:hover td {
 
 .file-error-status i {
     color: #dc3545;
+    margin-right: 0.5rem;
 }
 
 .upload-error-tips {
