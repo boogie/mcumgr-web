@@ -462,6 +462,41 @@ table tr:hover td {
     color: #dc3545;
 }
 
+.upload-error-alert {
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.upload-error-tips {
+    font-size: 0.85rem;
+    margin-top: 0.75rem;
+}
+
+.upload-error-tips strong {
+    display: block;
+    margin-bottom: 0.5rem;
+}
+
+.upload-error-tips ul {
+    margin: 0;
+    padding-left: 1.25rem;
+    list-style: none;
+}
+
+.upload-error-tips ul li {
+    position: relative;
+    margin-bottom: 0.35rem;
+    padding-left: 0;
+}
+
+.upload-error-tips ul li:before {
+    content: "•";
+    position: absolute;
+    left: -1.25rem;
+    color: #dc3545;
+    font-weight: bold;
+}
+
 #connection-error-tips ul li {
     padding-left: 1rem;
     text-indent: -1rem;

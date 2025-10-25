@@ -234,22 +234,17 @@ mcumgr.onImageUploadFinished(() => {
 
 mcumgr.onImageUploadError(({ error, consecutiveTimeouts, totalTimeouts }) => {
     fileStatus.innerText = '✗ Upload failed';
-    fileInfo.innerHTML = `<div class="alert alert-danger mt-3 mb-0">
-        <div class="d-flex align-items-start">
-            <i class="bi-exclamation-triangle-fill me-2 flex-shrink-0" style="font-size: 1.2rem;"></i>
-            <div class="flex-grow-1">
-                <strong class="d-block mb-2">Upload Failed</strong>
-                <p class="mb-2">${error}</p>
-                <div class="small mt-3">
-                    <strong>What you can try:</strong>
-                    <ul class="mb-0 mt-2 ps-0 list-unstyled" style="padding-left: 1rem; text-indent: -1rem;">
-                        <li class="mb-1">• Check that the device is still connected and in range</li>
-                        <li class="mb-1">• Try disconnecting and reconnecting to the device</li>
-                        <li class="mb-1">• Power cycle the device and try again</li>
-                        <li class="mb-1">• The device firmware may be slow - try a smaller image file</li>
-                    </ul>
-                </div>
-            </div>
+    fileInfo.innerHTML = `<div class="alert alert-danger mt-3 mb-0 upload-error-alert">
+        <div class="mb-2"><strong>Upload Failed</strong></div>
+        <div class="mb-3">${error}</div>
+        <div class="upload-error-tips">
+            <strong>What you can try:</strong>
+            <ul>
+                <li>Check that the device is still connected and in range</li>
+                <li>Try disconnecting and reconnecting to the device</li>
+                <li>Power cycle the device and try again</li>
+                <li>The device firmware may be slow - try a smaller image file</li>
+            </ul>
         </div>
     </div>`;
     fileUpload.disabled = false;
