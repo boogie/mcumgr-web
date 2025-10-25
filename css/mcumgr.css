@@ -467,6 +467,26 @@ table tr:hover td {
 .upload-error-alert {
     font-size: 0.9rem;
     line-height: 1.5;
+    max-width: 600px;
+    margin: 0 auto;
+    text-align: left;
+    background: rgba(220, 53, 69, 0.15);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+    border-radius: 16px;
+    padding: 1rem 1.25rem;
+    color: #842029;
+    backdrop-filter: blur(10px) saturate(150%);
+    -webkit-backdrop-filter: blur(10px) saturate(150%);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+}
+
+.upload-status-message {
+    text-align: center;
+}
+
+.upload-warning {
+    color: #664d03;
+    font-size: 0.875rem;
 }
 
 .upload-error-tips {

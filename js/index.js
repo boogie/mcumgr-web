@@ -26,6 +26,9 @@ const connectionError = document.getElementById('connection-error');
 const connectionErrorMessage = document.getElementById('connection-error-message');
 const closeConnectionError = document.getElementById('close-connection-error');
 const uploadDropZone = document.getElementById('upload-drop-zone');
+const uploadIcon = document.getElementById('upload-icon');
+const uploadDropTitle = document.getElementById('upload-drop-title');
+const uploadDropSubtitle = document.getElementById('upload-drop-subtitle');
 
 if (navigator && navigator.bluetooth && navigator.bluetooth.getAvailability()) {
     bluetoothIsAvailableMessage.innerText = 'Bluetooth is available in your browser.';
@@ -206,20 +209,24 @@ mcumgr.onMessage(({ op, group, id, data, length }) => {
 });
 
 mcumgr.onImageUploadProgress(({ percentage, timeoutAdjusted, newTimeout }) => {
+    // Hide drop zone text during upload
+    uploadIcon.style.display = 'none';
+    uploadDropTitle.style.display = 'none';
+    uploadDropSubtitle.style.display = 'none';
+
     if (timeoutAdjusted) {
-        fileStatus.innerText = `Uploading... ${percentage}%`;
-        fileInfo.innerHTML = `<div class="alert alert-warning mt-3 mb-0">Device is responding slowly, automatically adjusting timeout to ${newTimeout}ms...</div>`;
-        setTimeout(() => {
-            if (fileInfo.innerHTML.includes('adjusting timeout')) {
-                fileInfo.innerHTML = '';
-            }
-        }, 5000);
+        fileStatus.innerHTML = `<div class="upload-status-message upload-warning">Uploading... ${percentage}%<br>Device is responding slowly, automatically adjusting timeout to ${newTimeout}ms...</div>`;
     } else {
-        fileStatus.innerText = `Uploading... ${percentage}%`;
+        fileStatus.innerHTML = `<div class="upload-status-message">Uploading... ${percentage}%</div>`;
     }
 });
 
 mcumgr.onImageUploadFinished(() => {
+    // Show drop zone text again
+    uploadIcon.style.display = '';
+    uploadDropTitle.style.display = '';
+    uploadDropSubtitle.style.display = '';
+
     fileStatus.innerText = 'No file selected';
     fileInfo.innerHTML = '<span class="text-success">✓ Upload complete!</span>';
     fileImage.value = '';
@@ -233,8 +240,12 @@ mcumgr.onImageUploadFinished(() => {
 });
 
 mcumgr.onImageUploadError(({ error, consecutiveTimeouts, totalTimeouts }) => {
-    fileStatus.innerText = '✗ Upload failed';
-    fileInfo.innerHTML = `<div class="alert alert-danger mt-3 mb-0 upload-error-alert">
+    // Show drop zone text again
+    uploadIcon.style.display = '';
+    uploadDropTitle.style.display = '';
+    uploadDropSubtitle.style.display = '';
+
+    fileStatus.innerHTML = `<div class="upload-error-alert">
         <div class="mb-2"><strong>Upload Failed</strong></div>
         <div class="mb-3">${error}</div>
         <div class="upload-error-tips">
