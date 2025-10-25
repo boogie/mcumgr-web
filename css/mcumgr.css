@@ -437,16 +437,29 @@ table tr:hover td {
     backdrop-filter: blur(10px) saturate(150%);
     -webkit-backdrop-filter: blur(10px) saturate(150%);
     box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+    padding: 1rem 1.25rem;
 }
 
 .alert-success {
     background: rgba(25, 135, 84, 0.15);
     border-color: rgba(25, 135, 84, 0.3);
+    color: #0f5132;
+}
+
+.alert-warning {
+    background: rgba(255, 193, 7, 0.15);
+    border-color: rgba(255, 193, 7, 0.3);
+    color: #664d03;
 }
 
 .alert-danger {
     background: rgba(220, 53, 69, 0.15);
     border-color: rgba(220, 53, 69, 0.3);
+    color: #842029;
+}
+
+.alert-danger .bi-exclamation-triangle-fill {
+    color: #dc3545;
 }
 
 #connection-error-tips ul li {
