@@ -22,6 +22,9 @@ const fileUpload = document.getElementById('file-upload');
 const bluetoothIsAvailable = document.getElementById('bluetooth-is-available');
 const bluetoothIsAvailableMessage = document.getElementById('bluetooth-is-available-message');
 const connectBlock = document.getElementById('connect-block');
+const connectionError = document.getElementById('connection-error');
+const connectionErrorMessage = document.getElementById('connection-error-message');
+const closeConnectionError = document.getElementById('close-connection-error');
 
 if (navigator && navigator.bluetooth && navigator.bluetooth.getAvailability()) {
     bluetoothIsAvailableMessage.innerText = 'Bluetooth is available in your browser.';
@@ -41,26 +44,39 @@ deviceNameInput.addEventListener('change', () => {
     localStorage.setItem('deviceName', deviceNameInput.value);
 });
 
+// Close connection error alert
+closeConnectionError.addEventListener('click', () => {
+    connectionError.style.display = 'none';
+});
+
 const mcumgr = new MCUManager();
 mcumgr.onConnecting(() => {
     console.log('Connecting...');
+    connectionError.style.display = 'none'; // Hide any previous errors
     screens.initial.style.display = 'none';
     screens.connected.style.display = 'none';
     screens.connecting.style.display = 'block';
 });
 mcumgr.onConnect(() => {
     deviceName.innerText = mcumgr.name;
+    connectionError.style.display = 'none'; // Hide any previous errors
     screens.connecting.style.display = 'none';
     screens.initial.style.display = 'none';
     screens.connected.style.display = 'block';
     imageList.innerHTML = '';
     mcumgr.cmdImageState();
 });
-mcumgr.onDisconnect(() => {
+mcumgr.onDisconnect((error) => {
     deviceName.innerText = 'Connect your device';
     screens.connecting.style.display = 'none';
     screens.connected.style.display = 'none';
     screens.initial.style.display = 'block';
+
+    // Show error message if disconnect was due to an error
+    if (error) {
+        connectionErrorMessage.innerText = error.message || 'An unknown error occurred while connecting to the device.';
+        connectionError.style.display = 'block';
+    }
 });
 
 mcumgr.onMessage(({ op, group, id, data, length }) => {

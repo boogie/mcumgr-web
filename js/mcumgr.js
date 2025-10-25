@@ -80,7 +80,7 @@ class MCUManager {
             this._connect(0);
         } catch (error) {
             this._logger.error(error);
-            await this._disconnected();
+            await this._disconnected(error);
             return;
         }
     }
@@ -101,7 +101,8 @@ class MCUManager {
                 }
             } catch (error) {
                 this._logger.error(error);
-                await this._disconnected();
+                // Only show error to user on initial connection attempt, not on reconnection attempts
+                await this._disconnected(delay === 0 ? error : null);
             }
         }, delay);
     }
@@ -136,9 +137,9 @@ class MCUManager {
     async _connected() {
         if (this._connectCallback) this._connectCallback();
     }
-    async _disconnected() {
+    async _disconnected(error = null) {
         this._logger.info('Disconnected.');
-        if (this._disconnectCallback) this._disconnectCallback();
+        if (this._disconnectCallback) this._disconnectCallback(error);
         this._device = null;
         this._service = null;
         this._characteristic = null;

@@ -41,6 +41,23 @@
                             </p>
                         </div>
 
+                        <div class="alert alert-danger" role="alert" id="connection-error" style="display: none;">
+                            <i class="bi-exclamation-triangle-fill me-2"></i>
+                            <strong>Connection Failed</strong>
+                            <p class="mb-2 mt-2" id="connection-error-message"></p>
+                            <div class="small" id="connection-error-tips">
+                                <strong>Troubleshooting tips:</strong>
+                                <ul class="mb-0 mt-1">
+                                    <li>Make sure the device is powered on and in range</li>
+                                    <li>Check if the device is already connected to another app or browser tab</li>
+                                    <li>Try forgetting the device in your OS Bluetooth settings and reconnect</li>
+                                    <li>Power cycle the device (turn it off and on)</li>
+                                    <li>Refresh this page and try again</li>
+                                </ul>
+                            </div>
+                            <button type="button" class="btn-close position-absolute top-0 end-0 m-2" aria-label="Close" id="close-connection-error"></button>
+                        </div>
+
                         <div id="connect-block" style="display: none;">
                             <div class="mb-3">
                                 <label for="device-name-input" class="form-label">Device Name (Optional)</label>
