@@ -68,6 +68,18 @@ mcumgr.onConnect(() => {
     screens.initial.style.display = 'none';
     screens.connected.style.display = 'block';
     imageList.innerHTML = '';
+
+    // Reset upload form state (device may have been reset/updated)
+    uploadIcon.style.display = '';
+    uploadDropTitle.style.display = '';
+    uploadDropSubtitle.style.display = '';
+    fileStatus.innerText = 'No file selected';
+    fileInfo.innerHTML = '';
+    fileImage.value = '';
+    file = null;
+    fileData = null;
+    fileUpload.disabled = true;
+
     mcumgr.cmdImageState();
 });
 mcumgr.onDisconnect((error) => {
