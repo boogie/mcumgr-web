@@ -239,15 +239,13 @@ mcumgr.onImageUploadFinished(() => {
     mcumgr.cmdImageState();
 });
 
-mcumgr.onImageUploadError(({ error, consecutiveTimeouts, totalTimeouts }) => {
+mcumgr.onImageUploadError(({ error, errorCode, consecutiveTimeouts, totalTimeouts }) => {
     // Show drop zone text again
     uploadIcon.style.display = '';
     uploadDropTitle.style.display = '';
     uploadDropSubtitle.style.display = '';
 
-    fileStatus.innerHTML = `<div class="upload-error-alert">
-        <div class="mb-2"><strong>Upload Failed</strong></div>
-        <div class="mb-3">${error}</div>
+    let tips = `
         <div class="upload-error-tips">
             <strong>What you can try:</strong>
             <ul>
@@ -257,6 +255,27 @@ mcumgr.onImageUploadError(({ error, consecutiveTimeouts, totalTimeouts }) => {
                 <li>The device firmware may be slow - try a smaller image file</li>
             </ul>
         </div>
+    `;
+
+    // For error code 2 (busy/bad state), provide specific guidance
+    if (errorCode === 2) {
+        tips = `
+            <div class="upload-error-tips">
+                <strong>What you can try:</strong>
+                <ul>
+                    <li>Click "Erase Slot" to clear the secondary slot</li>
+                    <li>If an image is pending, click "Test Slot #1 on Reboot" or reset the device</li>
+                    <li>If an image is being tested, click "Make Slot #0 Permanent" to confirm it</li>
+                    <li>Check the Images section above for the current slot states</li>
+                </ul>
+            </div>
+        `;
+    }
+
+    fileStatus.innerHTML = `<div class="upload-error-alert">
+        <div class="mb-2"><strong>Upload Failed</strong></div>
+        <div class="mb-3">${error}</div>
+        ${tips}
     </div>`;
     fileUpload.disabled = false;
 });

@@ -199,16 +199,48 @@ class MCUManager {
             data: data
         });
 
-        if (group === MGMT_GROUP_ID_IMAGE && id === IMG_MGMT_ID_UPLOAD && (data.rc === 0 || data.rc === undefined) && data.off){
+        if (group === MGMT_GROUP_ID_IMAGE && id === IMG_MGMT_ID_UPLOAD) {
             // Clear timeout since we received a response
             if (this._uploadTimeout) {
                 clearTimeout(this._uploadTimeout);
             }
-            // Reset consecutive timeout counter on successful response
-            this._consecutiveTimeouts = 0;
-            this._uploadOffset = data.off;
-            this._uploadNext();
-            return;
+
+            // Check for error response
+            if (data.rc && data.rc !== 0) {
+                this._uploadIsInProgress = false;
+                const errorMessages = {
+                    1: 'Unknown error',
+                    2: 'Slot is busy or in bad state. Try erasing the slot first or confirming/testing pending images.',
+                    3: 'Invalid value',
+                    4: 'Operation timeout',
+                    5: 'No entry found',
+                    6: 'Bad state',
+                    7: 'Response too large',
+                    8: 'Not supported',
+                    9: 'Data is corrupt',
+                    10: 'Device is busy'
+                };
+                const errorMsg = errorMessages[data.rc] || `Device returned error code ${data.rc}`;
+                this._logger.error(`Upload failed: ${errorMsg}`);
+                if (this._imageUploadErrorCallback) {
+                    this._imageUploadErrorCallback({
+                        error: `Upload failed: ${errorMsg}`,
+                        errorCode: data.rc,
+                        consecutiveTimeouts: this._consecutiveTimeouts,
+                        totalTimeouts: this._totalTimeouts
+                    });
+                }
+                return;
+            }
+
+            // Success response with offset
+            if ((data.rc === 0 || data.rc === undefined) && data.off !== undefined) {
+                // Reset consecutive timeout counter on successful response
+                this._consecutiveTimeouts = 0;
+                this._uploadOffset = data.off;
+                this._uploadNext();
+                return;
+            }
         }
         if (this._messageCallback) this._messageCallback({ op, group, id, data, length });
     }
