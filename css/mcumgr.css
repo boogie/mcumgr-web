@@ -509,7 +509,7 @@ table tr:hover td {
 
 .upload-progress-bar .progress-bar {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    border-radius: 8px;
+    height: 100%;
 }
 
 .upload-warning-text {
