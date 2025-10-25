@@ -19,6 +19,7 @@ const fileInfo = document.getElementById('file-info');
 const fileStatus = document.getElementById('file-status');
 const fileImage = document.getElementById('file-image');
 const fileUpload = document.getElementById('file-upload');
+const fileCancel = document.getElementById('file-cancel');
 const bluetoothIsAvailable = document.getElementById('bluetooth-is-available');
 const bluetoothIsAvailableMessage = document.getElementById('bluetooth-is-available-message');
 const connectBlock = document.getElementById('connect-block');
@@ -79,6 +80,7 @@ mcumgr.onConnect(() => {
     file = null;
     fileData = null;
     fileUpload.disabled = true;
+    fileCancel.style.display = 'none';
 
     mcumgr.cmdImageState();
 });
@@ -233,7 +235,7 @@ mcumgr.onImageUploadProgress(({ percentage, timeoutAdjusted, newTimeout }) => {
                     <i class="bi-upload me-2"></i>Uploading... ${percentage}%
                 </div>
                 <div class="progress upload-progress-bar">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: ${percentage}%" aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100"></div>
+                    <div class="progress-bar" role="progressbar" style="width: ${percentage}%" aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100"></div>
                 </div>
                 <div class="upload-warning-text">
                     <i class="bi-exclamation-circle me-1"></i>Device is responding slowly, adjusting timeout to ${newTimeout}ms...
@@ -247,7 +249,7 @@ mcumgr.onImageUploadProgress(({ percentage, timeoutAdjusted, newTimeout }) => {
                     <i class="bi-upload me-2"></i>Uploading... ${percentage}%
                 </div>
                 <div class="progress upload-progress-bar">
-                    <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: ${percentage}%" aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100"></div>
+                    <div class="progress-bar" role="progressbar" style="width: ${percentage}%" aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100"></div>
                 </div>
             </div>
         `;
@@ -266,10 +268,17 @@ mcumgr.onImageUploadFinished(() => {
     file = null;
     fileData = null;
     fileUpload.disabled = true;
+    fileCancel.style.display = 'none';
     setTimeout(() => {
         fileInfo.innerHTML = '';
     }, 3000);
     mcumgr.cmdImageState();
+});
+
+mcumgr.onImageUploadCancelled(() => {
+    // Upload was cancelled, form is already reset by cancel button
+    // Just log for debugging
+    console.log('Upload cancelled');
 });
 
 mcumgr.onImageUploadError(({ error, errorCode, consecutiveTimeouts, totalTimeouts }) => {
@@ -321,6 +330,9 @@ fileImage.addEventListener('change', () => {
     uploadIcon.style.display = 'none';
     uploadDropTitle.style.display = 'none';
     uploadDropSubtitle.style.display = 'none';
+
+    // Show cancel button
+    fileCancel.style.display = '';
 
     fileData = null;
     fileStatus.innerHTML = `<div class="file-selected-status"><i class="bi-file-earmark-binary me-2"></i>${file.name}</div>`;
@@ -392,6 +404,25 @@ fileUpload.addEventListener('click', event => {
     if (file && fileData) {
         mcumgr.cmdUpload(fileData);
     }
+});
+
+fileCancel.addEventListener('click', event => {
+    event.stopPropagation();
+
+    // Cancel upload if in progress
+    mcumgr.cancelUpload();
+
+    // Reset the file upload form
+    uploadIcon.style.display = '';
+    uploadDropTitle.style.display = '';
+    uploadDropSubtitle.style.display = '';
+    fileStatus.innerText = 'No file selected';
+    fileInfo.innerHTML = '';
+    fileImage.value = '';
+    file = null;
+    fileData = null;
+    fileUpload.disabled = true;
+    fileCancel.style.display = 'none';
 });
 
 // Drag and drop functionality
