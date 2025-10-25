@@ -514,6 +514,47 @@ table tr:hover td {
     margin-top: 0.5rem;
 }
 
+.file-selected-status,
+.file-ready-status,
+.file-error-status {
+    text-align: center;
+    font-size: 1rem;
+    font-weight: 500;
+    padding: 0.5rem 1rem;
+    border-radius: 12px;
+    margin-bottom: 0.75rem;
+}
+
+.file-selected-status {
+    color: #495057;
+    background: rgba(108, 117, 125, 0.1);
+    border: 1px solid rgba(108, 117, 125, 0.2);
+}
+
+.file-selected-status i {
+    color: #6c757d;
+}
+
+.file-ready-status {
+    color: #0f5132;
+    background: rgba(25, 135, 84, 0.15);
+    border: 1px solid rgba(25, 135, 84, 0.3);
+}
+
+.file-ready-status i {
+    color: #198754;
+}
+
+.file-error-status {
+    color: #842029;
+    background: rgba(220, 53, 69, 0.15);
+    border: 1px solid rgba(220, 53, 69, 0.3);
+}
+
+.file-error-status i {
+    color: #dc3545;
+}
+
 .upload-error-tips {
     font-size: 0.85rem;
     margin-top: 0.75rem;

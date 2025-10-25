@@ -323,7 +323,7 @@ fileImage.addEventListener('change', () => {
     uploadDropSubtitle.style.display = 'none';
 
     fileData = null;
-    fileStatus.innerText = `Selected: ${file.name}`;
+    fileStatus.innerHTML = `<div class="file-selected-status"><i class="bi-file-earmark-binary me-2"></i>${file.name}</div>`;
     fileInfo.innerHTML = '<div class="spinner-border spinner-border-sm" role="status"><span class="visually-hidden">Loading...</span></div> Analyzing...';
 
     const reader = new FileReader();
@@ -358,7 +358,7 @@ fileImage.addEventListener('change', () => {
 
             infoHTML += '</div>';
 
-            fileStatus.innerText = `✓ ${file.name} - Ready to upload`;
+            fileStatus.innerHTML = `<div class="file-ready-status"><i class="bi-check-circle-fill me-2"></i>${file.name} - Ready to upload</div>`;
             fileInfo.innerHTML = infoHTML;
 
             // Add click handler for upload hash copy icon
@@ -379,7 +379,7 @@ fileImage.addEventListener('change', () => {
 
             fileUpload.disabled = false;
         } catch (e) {
-            fileStatus.innerText = `✗ ${file.name} - Invalid file`;
+            fileStatus.innerHTML = `<div class="file-error-status"><i class="bi-x-circle-fill me-2"></i>${file.name} - Invalid file</div>`;
             fileInfo.innerHTML = `<span class="text-danger">ERROR: ${e.message}</span>`;
             fileUpload.disabled = true;
         }
