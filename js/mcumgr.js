@@ -46,8 +46,13 @@ class MCUManager {
         this._disconnectCallback = null;
         this._messageCallback = null;
         this._imageUploadProgressCallback = null;
+        this._imageUploadErrorCallback = null;
         this._uploadIsInProgress = false;
-        this._chunkTimeout = 500; // 500ms, if sending a chunk is not completed in this time, it will be retried (even 250ms can be too low for some devices)
+        this._chunkTimeout = 5000; // 5000ms, if sending a chunk is not completed in this time, it will be retried
+        this._consecutiveTimeouts = 0;
+        this._maxConsecutiveTimeouts = 2; // After this many timeouts, try increasing timeout
+        this._maxTotalTimeouts = 6; // After this many total timeouts, give up
+        this._totalTimeouts = 0;
         this._buffer = new Uint8Array();
         this._logger = di.logger || { info: console.log, error: console.error };
         this._seq = 0;
@@ -80,7 +85,7 @@ class MCUManager {
             this._connect(0);
         } catch (error) {
             this._logger.error(error);
-            await this._disconnected();
+            await this._disconnected(error);
             return;
         }
     }
@@ -101,7 +106,8 @@ class MCUManager {
                 }
             } catch (error) {
                 this._logger.error(error);
-                await this._disconnected();
+                // Only show error to user on initial connection attempt, not on reconnection attempts
+                await this._disconnected(delay === 0 ? error : null);
             }
         }, delay);
     }
@@ -133,12 +139,20 @@ class MCUManager {
         this._imageUploadFinishedCallback = callback;
         return this;
     }
+    onImageUploadError(callback) {
+        this._imageUploadErrorCallback = callback;
+        return this;
+    }
+    onImageUploadCancelled(callback) {
+        this._imageUploadCancelledCallback = callback;
+        return this;
+    }
     async _connected() {
         if (this._connectCallback) this._connectCallback();
     }
-    async _disconnected() {
+    async _disconnected(error = null) {
         this._logger.info('Disconnected.');
-        if (this._disconnectCallback) this._disconnectCallback();
+        if (this._disconnectCallback) this._disconnectCallback(error);
         this._device = null;
         this._service = null;
         this._characteristic = null;
@@ -179,14 +193,58 @@ class MCUManager {
         const data = CBOR.decode(message.slice(8).buffer);
         const length = length_hi * 256 + length_lo;
         const group = group_hi * 256 + group_lo;
-        if (group === MGMT_GROUP_ID_IMAGE && id === IMG_MGMT_ID_UPLOAD && (data.rc === 0 || data.rc === undefined) && data.off){
+
+        console.log('[MCUManager DEBUG] Message received:', {
+            op,
+            group,
+            id,
+            length,
+            dataKeys: data ? Object.keys(data) : 'null',
+            data: data
+        });
+
+        if (group === MGMT_GROUP_ID_IMAGE && id === IMG_MGMT_ID_UPLOAD) {
             // Clear timeout since we received a response
             if (this._uploadTimeout) {
                 clearTimeout(this._uploadTimeout);
             }
-            this._uploadOffset = data.off;            
-            this._uploadNext();
-            return;
+
+            // Check for error response
+            if (data.rc && data.rc !== 0) {
+                this._uploadIsInProgress = false;
+                const errorMessages = {
+                    1: 'Unknown error',
+                    2: 'Slot is busy or in bad state. Try erasing the slot first or confirming/testing pending images.',
+                    3: 'Invalid value',
+                    4: 'Operation timeout',
+                    5: 'No entry found',
+                    6: 'Bad state',
+                    7: 'Response too large',
+                    8: 'Not supported',
+                    9: 'Data is corrupt',
+                    10: 'Device is busy'
+                };
+                const errorMsg = errorMessages[data.rc] || `Device returned error code ${data.rc}`;
+                this._logger.error(`Upload failed: ${errorMsg}`);
+                if (this._imageUploadErrorCallback) {
+                    this._imageUploadErrorCallback({
+                        error: `Upload failed: ${errorMsg}`,
+                        errorCode: data.rc,
+                        consecutiveTimeouts: this._consecutiveTimeouts,
+                        totalTimeouts: this._totalTimeouts
+                    });
+                }
+                return;
+            }
+
+            // Success response with offset
+            if ((data.rc === 0 || data.rc === undefined) && data.off !== undefined) {
+                // Reset consecutive timeout counter on successful response
+                this._consecutiveTimeouts = 0;
+                this._uploadOffset = data.off;
+                this._uploadNext();
+                return;
+            }
         }
         if (this._messageCallback) this._messageCallback({ op, group, id, data, length });
     }
@@ -224,7 +282,36 @@ class MCUManager {
         }
         // Set new timeout
         this._uploadTimeout = setTimeout(() => {
-            this._logger.info('Upload chunk timeout, retry');
+            this._consecutiveTimeouts++;
+            this._totalTimeouts++;
+
+            this._logger.info(`Upload chunk timeout (consecutive: ${this._consecutiveTimeouts}, total: ${this._totalTimeouts})`);
+
+            // If we've hit too many total timeouts, give up
+            if (this._totalTimeouts >= this._maxTotalTimeouts) {
+                this._uploadIsInProgress = false;
+                const error = `Upload failed: Device not responding after ${this._totalTimeouts} attempts. The device may be too slow or disconnected.`;
+                this._logger.error(error);
+                if (this._imageUploadErrorCallback) {
+                    this._imageUploadErrorCallback({ error, consecutiveTimeouts: this._consecutiveTimeouts, totalTimeouts: this._totalTimeouts });
+                }
+                return;
+            }
+
+            // If we've had several consecutive timeouts, increase the timeout duration
+            if (this._consecutiveTimeouts >= this._maxConsecutiveTimeouts) {
+                this._chunkTimeout = Math.min(this._chunkTimeout * 2, 15000); // Max 15 seconds
+                this._logger.info(`Increased chunk timeout to ${this._chunkTimeout}ms`);
+                // Notify UI about timeout adjustment
+                if (this._imageUploadProgressCallback) {
+                    this._imageUploadProgressCallback({
+                        percentage: Math.floor(this._uploadOffset / this._uploadImage.byteLength * 100),
+                        timeoutAdjusted: true,
+                        newTimeout: this._chunkTimeout
+                    });
+                }
+            }
+
             this._uploadNext();
         }, this._chunkTimeout);
 
@@ -256,13 +343,57 @@ class MCUManager {
         this._uploadImage = image;
         this._uploadSlot = slot;
 
+        // Reset timeout tracking
+        this._consecutiveTimeouts = 0;
+        this._totalTimeouts = 0;
+        this._chunkTimeout = 5000; // Reset to initial value
+
         this._uploadNext();
+    }
+    cancelUpload() {
+        if (!this._uploadIsInProgress) {
+            return;
+        }
+
+        // Clear timeout
+        if (this._uploadTimeout) {
+            clearTimeout(this._uploadTimeout);
+        }
+
+        // Reset upload state
+        this._uploadIsInProgress = false;
+        this._uploadOffset = 0;
+        this._uploadImage = null;
+        this._consecutiveTimeouts = 0;
+        this._totalTimeouts = 0;
+
+        this._logger.info('Upload cancelled by user');
+
+        // Notify callback
+        if (this._imageUploadCancelledCallback) {
+            this._imageUploadCancelledCallback();
+        }
+    }
+    // Given an ArrayBuffer, extract Tag-Value pairs and return them one by one.
+    *_extractTlvs(data) {
+        const view = new DataView(data);
+        let offset = 0;
+        while (offset < view.byteLength) {
+            const tag = view.getUint16(offset, true);
+            const len = view.getUint16(offset + 2, true);
+            offset += 4;
+            const valueData = view.buffer.slice(offset, offset + len);
+            offset += len;
+
+            yield { tag, value: new Uint8Array(valueData) };
+        }
     }
     async imageInfo(image) {
         // https://interrupt.memfault.com/blog/mcuboot-overview#mcuboot-image-binaries
 
         const info = {};
-        const view = new Uint8Array(image);
+        info.tags = {};
+        const view = new DataView(image);
 
         // check header length
         if (view.length < 32) {
@@ -270,23 +401,21 @@ class MCUManager {
         }
 
         // check MAGIC bytes 0x96f3b83d
-        if (view[0] !== 0x3d || view[1] !== 0xb8 || view[2] !== 0xf3 || view[3] !== 0x96) {
+        if (view.getUint32(0, true) !== 0x96f3b83d) {
             throw new Error('Invalid image (wrong magic bytes)');
         }
 
         // check load address is 0x00000000
-        if (view[4] !== 0x00 || view[5] !== 0x00 || view[6] !== 0x00 || view[7] !== 0x00) {
+        if (view.getUint32(4, true) !== 0) {
             throw new Error('Invalid image (wrong load address)');
         }
 
-        const headerSize = view[8] + view[9] * 2**8;
+        const headerSize = view.getUint16(8, true);
 
-        // check protected TLV area size is 0
-        if (view[10] !== 0x00 || view[11] !== 0x00) {
-            throw new Error('Invalid image (wrong protected TLV area size)');
-        }
+        // Protected TLV area is included in the hash
+        const protected_tlv_length = view.getUint16(10, true);
 
-        const imageSize = view[12] + view[13] * 2**8 + view[14] * 2**16 + view[15] * 2**24;
+        const imageSize = view.getUint32(12, true);
         info.imageSize = imageSize;
 
         // check image size is correct
@@ -295,14 +424,51 @@ class MCUManager {
         }
 
         // check flags is 0x00000000
-        if (view[16] !== 0x00 || view[17] !== 0x00 || view[18] !== 0x00 || view[19] !== 0x00) {
+        if (view.getUint32(16, true) !== 0x00) {
             throw new Error('Invalid image (wrong flags)');
         }
 
-        const version = `${view[20]}.${view[21]}.${view[22] + view[23] * 2**8}`;
+        const version = `${view.getUint8(20)}.${view.getUint8(21)}.${view.getUint16(22, true)}`;
         info.version = version;
 
-        info.hash = [...new Uint8Array(await this._hash(image.slice(0, imageSize + headerSize)))].map(b => b.toString(16).padStart(2, '0')).join('');
+        const hashBytes = new Uint8Array(await this._hash(image.slice(0, imageSize + headerSize + protected_tlv_length)));
+        info.hash = [...hashBytes].map(b => b.toString(16).padStart(2, '0')).join('');
+
+        let offset = headerSize + imageSize;
+        let tlv_end = offset;
+
+        // Only if it was indicated that there were protected TLVs
+        if (protected_tlv_length > 0) {
+            // Verify the protected TLV magic bytes are valid.
+            if (view.getUint16(offset, true) !== 0x6908) {
+                throw new Error( `Expected protected TLV magic number. (0x${offset.toString(16)}: 0x${view.getUint16(offset, true).toString(16)})`);
+            }
+
+            // Find the end of the protected TLV region
+            tlv_end = view.getUint16(offset + 2, true) + offset;
+            // Store all tag-value pairs for the protected TLV region.
+            for (let tlv of this._extractTlvs(view.buffer.slice(offset + 4, tlv_end))) {
+                info.tags[tlv.tag] = tlv.value;
+            }
+            offset = tlv_end;
+        }
+
+        // The non-protected TLV region must be here.
+        if (view.getUint16(offset, true) !== 0x6907) {
+            throw new Error(`Expected TLV magic number. (0x${offset.toString(16)}: 0x${view.getUint16(offset, true).toString(16)})`);
+        }
+
+        // Also include the non-protected TLVs in the tags map.
+        // Assume there are no overlapping tag Ids.
+        tlv_end = view.getUint16(offset + 2, true) + offset;
+        for (let tlv of this._extractTlvs(view.buffer.slice(offset + 4, tlv_end))) {
+            info.tags[tlv.tag] = tlv.value;
+        }
+
+        // If the image hash tag is present, verify it matches what was calculated earlier.
+        if (16 in info.tags && info.tags[16].length == hashBytes.length) {
+            info.hashValid = info.tags[16].every((b, i) => b === hashBytes[i]);
+        }
 
         return info;
     }
