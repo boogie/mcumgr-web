@@ -143,6 +143,10 @@ class MCUManager {
         this._imageUploadErrorCallback = callback;
         return this;
     }
+    onImageUploadCancelled(callback) {
+        this._imageUploadCancelledCallback = callback;
+        return this;
+    }
     async _connected() {
         if (this._connectCallback) this._connectCallback();
     }
@@ -345,6 +349,30 @@ class MCUManager {
         this._chunkTimeout = 5000; // Reset to initial value
 
         this._uploadNext();
+    }
+    cancelUpload() {
+        if (!this._uploadIsInProgress) {
+            return;
+        }
+
+        // Clear timeout
+        if (this._uploadTimeout) {
+            clearTimeout(this._uploadTimeout);
+        }
+
+        // Reset upload state
+        this._uploadIsInProgress = false;
+        this._uploadOffset = 0;
+        this._uploadImage = null;
+        this._consecutiveTimeouts = 0;
+        this._totalTimeouts = 0;
+
+        this._logger.info('Upload cancelled by user');
+
+        // Notify callback
+        if (this._imageUploadCancelledCallback) {
+            this._imageUploadCancelledCallback();
+        }
     }
     // Given an ArrayBuffer, extract Tag-Value pairs and return them one by one.
     *_extractTlvs(data) {
