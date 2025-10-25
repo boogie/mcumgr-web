@@ -266,16 +266,17 @@ class MCUManager {
             const tag = view.getUint16(offset, true);
             const len = view.getUint16(offset + 2, true);
             offset += 4;
-            const data = view.buffer.slice(offset, offset + len);
+            const valueData = view.buffer.slice(offset, offset + len);
             offset += len;
 
-            yield { tag, value: new Uint8Array(data) };
+            yield { tag, value: new Uint8Array(valueData) };
         }
     }
     async imageInfo(image) {
         // https://interrupt.memfault.com/blog/mcuboot-overview#mcuboot-image-binaries
 
         const info = {};
+        info.tags = {};
         const view = new DataView(image);
 
         // check header length
@@ -289,14 +290,14 @@ class MCUManager {
         }
 
         // check load address is 0x00000000
-        if (view.getUint32(4, true) != 0) {
+        if (view.getUint32(4, true) !== 0) {
             throw new Error('Invalid image (wrong load address)');
         }
 
         const headerSize = view.getUint16(8, true);
 
         // Protected TLV area is included in the hash
-        const protected_tlv_lenth = view.getUint16(10, true);
+        const protected_tlv_length = view.getUint16(10, true);
 
         const imageSize = view.getUint32(12, true);
         info.imageSize = imageSize;
@@ -314,13 +315,14 @@ class MCUManager {
         const version = `${view.getUint8(20)}.${view.getUint8(21)}.${view.getUint16(22, true)}`;
         info.version = version;
 
-        info.hash = [...new Uint8Array(await this._hash(image.slice(0, imageSize + headerSize + protected_tlv_lenth)))].map(b => b.toString(16).padStart(2, '0')).join('');
+        const hashBytes = new Uint8Array(await this._hash(image.slice(0, imageSize + headerSize + protected_tlv_length)));
+        info.hash = [...hashBytes].map(b => b.toString(16).padStart(2, '0')).join('');
 
         let offset = headerSize + imageSize;
         let tlv_end = offset;
 
         // Only if it was indicated that there were protected TLVs
-        if (protected_tlv_lenth > 0) {
+        if (protected_tlv_length > 0) {
             // Verify the protected TLV magic bytes are valid.
             if (view.getUint16(offset, true) !== 0x6908) {
                 throw new Error( `Expected protected TLV magic number. (0x${offset.toString(16)}: 0x${view.getUint16(offset, true).toString(16)})`);
@@ -348,8 +350,8 @@ class MCUManager {
         }
 
         // If the image hash tag is present, verify it matches what was calculated earlier.
-        if (16 in info.tags && info.tags[16].length == hash.length) {
-            info.hashValid = info.tags[16].every((b, i) => b === hash[i]);
+        if (16 in info.tags && info.tags[16].length == hashBytes.length) {
+            info.hashValid = info.tags[16].every((b, i) => b === hashBytes[i]);
         }
 
         return info;
