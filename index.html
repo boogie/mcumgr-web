@@ -20,56 +20,124 @@
 <main role="main" class="container">
 
 <div class="starter-template">
-    <h1>mcumgr web</h1>
+    <!-- Initial/Login Screen -->
     <div class="content" id="initial-screen">
-        <div class="alert alert-primary" role="alert" id="bluetooth-is-available">
-            <b><span id="bluetooth-is-available-message"></span></b>
-            This tool is compatible with desktops (or laptops) with the <b>latest Chrome, Opera and Edge</b> browsers, and working
-            Bluetooth connection (most laptops have them these days). You can also try it from Chrome on Android, or Bluefy on iOS/iPadOS.
-        </div>
-        <div id="connect-block" style="display: none;">
-            <div class="form-group form-inline">
-                <div class="col-auto">
-                    <input id="device-name-input" type="text" class="form-control" id="device-name-input" placeholder="Device name (optional)">
-                </div>
-                <div class="col-auto">
-                    <button id="button-connect" type="submit" class="btn btn-primary"><i class="bi-bluetooth"></i> Connect</button>
+        <div class="row justify-content-center">
+            <div class="col-md-8 col-lg-6">
+                <div class="card shadow-lg login-card">
+                    <div class="card-body p-5">
+                        <div class="text-center mb-4">
+                            <i class="bi-bluetooth display-1 text-primary"></i>
+                            <h1 class="h2 mt-3 mb-2">mcumgr web</h1>
+                            <p class="text-muted">Web Bluetooth Device Manager</p>
+                        </div>
+
+                        <div class="alert alert-primary" role="alert" id="bluetooth-is-available">
+                            <i class="bi-info-circle-fill me-2"></i>
+                            <strong><span id="bluetooth-is-available-message"></span></strong>
+                            <p class="mb-0 mt-2 small">
+                                This tool is compatible with desktops (or laptops) with the <strong>latest Chrome, Opera and Edge</strong> browsers, and working
+                                Bluetooth connection (most laptops have them these days). You can also try it from Chrome on Android, or Bluefy on iOS/iPadOS.
+                            </p>
+                        </div>
+
+                        <div id="connect-block" style="display: none;">
+                            <div class="mb-3">
+                                <label for="device-name-input" class="form-label">Device Name (Optional)</label>
+                                <input id="device-name-input" type="text" class="form-control form-control-lg" placeholder="Enter device name">
+                            </div>
+                            <div class="d-grid">
+                                <button id="button-connect" type="submit" class="btn btn-primary btn-lg">
+                                    <i class="bi-bluetooth me-2"></i> Connect to Device
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
+
+    <!-- Connecting Screen -->
     <div class="content" id="connecting-screen" style="display: none;">
-        <div class="alert alert-primary" role="alert">
-            Connecting...
-          </div>
-    </div>
-    <div class="content" id="connected-screen" style="display: none;">
-        <div class="container">
-            <div>
-                <button id="button-echo" type="submit" class="btn btn-primary"><i class="bi-soundwave"></i> Echo</button>
-                <button id="button-disconnect" type="submit" class="btn btn-secondary"><i class="bi-x-square"></i> Disconnect</button>
-                <button id="button-reset" type="submit" class="btn btn-info"><i class="bi-arrow-clockwise"></i> Reset</button>
-            </div>
-            <hr />
-            <h3>Images</h3>
-            <div id="image-list"></div>
-            <div>
-                <button id="button-image-state" type="submit" class="btn btn-info"><i class="bi-arrow-down-circle"></i> Refresh</button>
-                <button id="button-erase" type="submit" class="btn btn-warning"><i class="bi-eraser-fill"></i> Erase</button>
-                <button id="button-test" type="submit" class="btn btn-primary" disabled><i class="bi-question-square"></i> Test</button>
-                <button id="button-confirm" type="submit" class="btn btn-success" disabled><i class="bi-check2-square"></i> Confirm</button>
-            </div>
-            <hr />
-            <h3>Image Upload</h3>
-            <div class="form-group">
-                <input type="file" class="form-control" id="file-image" />
-            </div>
-            <div class="image">
-                <div class="form-group">
-                    <div id="file-status">Select image file (.img)</div>
-                    <div id="file-info"></div>
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card shadow-lg">
+                    <div class="card-body text-center p-5">
+                        <div class="spinner-border text-primary mb-3" role="status" style="width: 3rem; height: 3rem;">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <h4>Connecting to device...</h4>
+                        <p class="text-muted">Please wait while we establish connection</p>
+                    </div>
                 </div>
-                <button class="btn btn-primary" id="file-upload" disabled><i class="bi-upload"></i> Upload</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Connected Screen -->
+    <div class="content" id="connected-screen" style="display: none;">
+        <!-- Device Controls Card -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi-tools me-2"></i>Device Controls</h5>
+            </div>
+            <div class="card-body">
+                <div class="d-flex gap-2 flex-wrap">
+                    <button id="button-echo" type="submit" class="btn btn-outline-primary">
+                        <i class="bi-soundwave"></i> Echo
+                    </button>
+                    <button id="button-reset" type="submit" class="btn btn-outline-info">
+                        <i class="bi-arrow-clockwise"></i> Reset
+                    </button>
+                    <button id="button-disconnect" type="submit" class="btn btn-outline-secondary ms-auto">
+                        <i class="bi-x-square"></i> Disconnect
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Images Card -->
+        <div class="card shadow-sm mb-4">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi-file-earmark-binary me-2"></i>Images</h5>
+            </div>
+            <div class="card-body">
+                <div id="image-list" class="mb-3"></div>
+                <div class="d-flex gap-2 flex-wrap">
+                    <button id="button-image-state" type="submit" class="btn btn-info">
+                        <i class="bi-arrow-down-circle"></i> Refresh
+                    </button>
+                    <button id="button-erase" type="submit" class="btn btn-warning">
+                        <i class="bi-eraser-fill"></i> Erase
+                    </button>
+                    <button id="button-test" type="submit" class="btn btn-primary" disabled>
+                        <i class="bi-question-square"></i> Test
+                    </button>
+                    <button id="button-confirm" type="submit" class="btn btn-success" disabled>
+                        <i class="bi-check2-square"></i> Confirm
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Image Upload Card -->
+        <div class="card shadow-sm">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="bi-cloud-upload me-2"></i>Image Upload</h5>
+            </div>
+            <div class="card-body">
+                <div class="mb-3">
+                    <label for="file-image" class="form-label">Select firmware image</label>
+                    <input type="file" class="form-control" id="file-image" accept=".img" />
+                </div>
+                <div class="upload-status-card">
+                    <div id="file-status" class="mb-2">Select image file (.img)</div>
+                    <div id="file-info" class="text-muted small"></div>
+                </div>
+                <button class="btn btn-primary btn-lg mt-3" id="file-upload" disabled>
+                    <i class="bi-upload me-2"></i> Upload Firmware
+                </button>
             </div>
         </div>
     </div>
