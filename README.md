@@ -4,12 +4,12 @@ This tool is the Web Bluetooth version of MCU Manager that enables a user to com
 
 The main focus is implementing firmware updates via Web Bluetooth, however other commands might be supported as well.
 
-The Web Bluetooth API provides the ability to connect and interact with Bluetooth Low Energy peripherals. You’ll find Web Bluetooth:
-- on the desktop (or laptop) in Chrome, Edge and Opera browsers (make sure you have the latest)
-- on Android phones in Chrome (perhaps in Edge or Opera?)
+The Web Bluetooth API provides the ability to connect and interact with Bluetooth Low Energy peripherals. You'll find Web Bluetooth:
+- on the desktop (or laptop) in Chrome and Edge browsers (make sure you have the latest). Other Chromium-based browsers may also work.
+- on Android phones in Chrome (perhaps in Edge or other Chromium-based browsers?)
 - on iOS or iPadOS there is [Bluefy](https://apps.apple.com/hu/app/bluefy-web-ble-browser/id1492822055) that seems to be working.
 
-Safari, Chrome, Edge and Opera on iOS are using the Safari WebKit engine which not yet supports Web Bluetooth. Mobile and desktop Firefox is not implemented it yet, too.
+Safari, Chrome, Edge on iOS are using the Safari WebKit engine which not yet supports Web Bluetooth. Mobile and desktop Firefox has not implemented it yet, too. Opera restricts Web Bluetooth access.
 
 You can try MCU Manager by visiting https://boogie.github.io/mcumgr-web/ with a supported browser. For security reasons, Web Bluetooth is only working on https addresses or localhost.
 
