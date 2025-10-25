@@ -1,38 +1,165 @@
-.content {
-    padding: 10px 0;
+/* General Layout */
+body {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    min-height: 100vh;
 }
 
+main.container {
+    padding-top: 80px;
+    padding-bottom: 40px;
+}
+
+.content {
+    padding: 20px 0;
+}
+
+/* Login Card */
+.login-card {
+    border-radius: 16px;
+    border: none;
+    animation: fadeInUp 0.6s ease-out;
+}
+
+.login-card .card-body {
+    background: white;
+    border-radius: 16px;
+}
+
+/* Animations */
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Card Enhancements */
+.card {
+    border-radius: 12px;
+    border: none;
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover {
+    transform: translateY(-2px);
+}
+
+.card-header {
+    border-radius: 12px 12px 0 0 !important;
+    border-bottom: none;
+    padding: 1rem 1.5rem;
+}
+
+/* Image Cards - Modern Design */
 .image {
-    background: #ddd;
-    border: 2px solid #aaa;
-    margin: 10px 0;
-    padding: 10px;   
+    background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+    border: none;
+    border-radius: 12px;
+    margin: 15px 0;
+    padding: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+    transition: all 0.3s ease;
+}
+
+.image:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0,0,0,0.15);
 }
 
 .image.active {
-    background: #eee;
-    border: 2px solid #0a0;
-    margin: 10px 0;
-    padding: 8px;   
+    background: linear-gradient(135deg, #d4fc79 0%, #96e6a1 100%);
+    border: 2px solid #10b981;
+    padding: 18px;
+    box-shadow: 0 4px 16px rgba(16, 185, 129, 0.3);
 }
 
+.image h2 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 15px;
+    color: #1f2937;
+}
+
+/* Tables - Modern Look */
 table {
     border-collapse: collapse;
-    border: 1px solid #700;
+    border: none;
+    width: 100%;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
 }
 
 table th {
-    padding: 5px;
+    padding: 12px 16px;
     text-align: left;
-    font-weight: normal;
-    font-size: 0.9em;
+    font-weight: 600;
+    font-size: 0.875rem;
     color: #fff;
-    background: #700;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
 }
 
 table td {
-    padding: 5px;
+    padding: 12px 16px;
     text-align: left;
-    font-size: 0.9em;
-    border-bottom: 1px solid #700;
+    font-size: 0.9rem;
+    border-bottom: 1px solid #e5e7eb;
+    background: white;
+}
+
+table tr:last-child td {
+    border-bottom: none;
+}
+
+table tr:hover td {
+    background: #f9fafb;
+}
+
+/* Upload Status Card */
+.upload-status-card {
+    background: #f3f4f6;
+    border-radius: 8px;
+    padding: 16px;
+    border-left: 4px solid #3b82f6;
+}
+
+/* Button Enhancements */
+.btn {
+    border-radius: 8px;
+    font-weight: 500;
+    padding: 0.5rem 1.25rem;
+    transition: all 0.2s ease;
+}
+
+.btn-lg {
+    padding: 0.75rem 1.5rem;
+    font-size: 1.1rem;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+/* Alert Enhancements */
+.alert {
+    border-radius: 10px;
+    border: none;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Navbar Enhancement */
+.navbar {
+    box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+}
+
+/* Spinner Enhancement */
+.spinner-border {
+    border-width: 0.3rem;
 }
