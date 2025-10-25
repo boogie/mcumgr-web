@@ -205,8 +205,18 @@ mcumgr.onMessage(({ op, group, id, data, length }) => {
     }
 });
 
-mcumgr.onImageUploadProgress(({ percentage }) => {
-    fileStatus.innerText = `Uploading... ${percentage}%`;
+mcumgr.onImageUploadProgress(({ percentage, timeoutAdjusted, newTimeout }) => {
+    if (timeoutAdjusted) {
+        fileStatus.innerText = `Uploading... ${percentage}% (Device is slow, adjusting timeout to ${newTimeout}ms)`;
+        fileInfo.innerHTML = '<div class="alert alert-warning mt-2 mb-0 small"><i class="bi-exclamation-circle me-1"></i>Device is responding slowly, automatically adjusting timeout...</div>';
+        setTimeout(() => {
+            if (fileInfo.innerHTML.includes('adjusting timeout')) {
+                fileInfo.innerHTML = '';
+            }
+        }, 5000);
+    } else {
+        fileStatus.innerText = `Uploading... ${percentage}%`;
+    }
 });
 
 mcumgr.onImageUploadFinished(() => {
@@ -215,10 +225,30 @@ mcumgr.onImageUploadFinished(() => {
     fileImage.value = '';
     file = null;
     fileData = null;
+    fileUpload.disabled = true;
     setTimeout(() => {
         fileInfo.innerHTML = '';
     }, 3000);
     mcumgr.cmdImageState();
+});
+
+mcumgr.onImageUploadError(({ error, consecutiveTimeouts, totalTimeouts }) => {
+    fileStatus.innerText = '✗ Upload failed';
+    fileInfo.innerHTML = `<div class="alert alert-danger mt-2 mb-0">
+        <i class="bi-exclamation-triangle-fill me-2"></i>
+        <strong>Upload Failed</strong>
+        <p class="mb-2 mt-2">${error}</p>
+        <div class="small">
+            <strong>What you can try:</strong>
+            <ul class="mb-0 mt-1 ps-0 list-unstyled">
+                <li>• Check that the device is still connected and in range</li>
+                <li>• Try disconnecting and reconnecting to the device</li>
+                <li>• Power cycle the device and try again</li>
+                <li>• The device firmware may be slow - try a smaller image file</li>
+            </ul>
+        </div>
+    </div>`;
+    fileUpload.disabled = false;
 });
 
 fileImage.addEventListener('change', () => {

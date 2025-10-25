@@ -46,8 +46,13 @@ class MCUManager {
         this._disconnectCallback = null;
         this._messageCallback = null;
         this._imageUploadProgressCallback = null;
+        this._imageUploadErrorCallback = null;
         this._uploadIsInProgress = false;
         this._chunkTimeout = 2000; // 2000ms, if sending a chunk is not completed in this time, it will be retried
+        this._consecutiveTimeouts = 0;
+        this._maxConsecutiveTimeouts = 3; // After this many timeouts, try increasing timeout
+        this._maxTotalTimeouts = 10; // After this many total timeouts, give up
+        this._totalTimeouts = 0;
         this._buffer = new Uint8Array();
         this._logger = di.logger || { info: console.log, error: console.error };
         this._seq = 0;
@@ -134,6 +139,10 @@ class MCUManager {
         this._imageUploadFinishedCallback = callback;
         return this;
     }
+    onImageUploadError(callback) {
+        this._imageUploadErrorCallback = callback;
+        return this;
+    }
     async _connected() {
         if (this._connectCallback) this._connectCallback();
     }
@@ -195,6 +204,8 @@ class MCUManager {
             if (this._uploadTimeout) {
                 clearTimeout(this._uploadTimeout);
             }
+            // Reset consecutive timeout counter on successful response
+            this._consecutiveTimeouts = 0;
             this._uploadOffset = data.off;
             this._uploadNext();
             return;
@@ -235,7 +246,36 @@ class MCUManager {
         }
         // Set new timeout
         this._uploadTimeout = setTimeout(() => {
-            this._logger.info('Upload chunk timeout, retry');
+            this._consecutiveTimeouts++;
+            this._totalTimeouts++;
+
+            this._logger.info(`Upload chunk timeout (consecutive: ${this._consecutiveTimeouts}, total: ${this._totalTimeouts})`);
+
+            // If we've hit too many total timeouts, give up
+            if (this._totalTimeouts >= this._maxTotalTimeouts) {
+                this._uploadIsInProgress = false;
+                const error = `Upload failed: Device not responding after ${this._totalTimeouts} attempts. The device may be too slow or disconnected.`;
+                this._logger.error(error);
+                if (this._imageUploadErrorCallback) {
+                    this._imageUploadErrorCallback({ error, consecutiveTimeouts: this._consecutiveTimeouts, totalTimeouts: this._totalTimeouts });
+                }
+                return;
+            }
+
+            // If we've had several consecutive timeouts, increase the timeout duration
+            if (this._consecutiveTimeouts >= this._maxConsecutiveTimeouts) {
+                this._chunkTimeout = Math.min(this._chunkTimeout * 1.5, 10000); // Max 10 seconds
+                this._logger.info(`Increased chunk timeout to ${this._chunkTimeout}ms`);
+                // Notify UI about timeout adjustment
+                if (this._imageUploadProgressCallback) {
+                    this._imageUploadProgressCallback({
+                        percentage: Math.floor(this._uploadOffset / this._uploadImage.byteLength * 100),
+                        timeoutAdjusted: true,
+                        newTimeout: this._chunkTimeout
+                    });
+                }
+            }
+
             this._uploadNext();
         }, this._chunkTimeout);
 
@@ -266,6 +306,11 @@ class MCUManager {
         this._uploadOffset = 0;
         this._uploadImage = image;
         this._uploadSlot = slot;
+
+        // Reset timeout tracking
+        this._consecutiveTimeouts = 0;
+        this._totalTimeouts = 0;
+        this._chunkTimeout = 2000; // Reset to initial value
 
         this._uploadNext();
     }
