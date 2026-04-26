@@ -27,17 +27,17 @@
                 <div class="card shadow-lg login-card">
                     <div class="card-body p-5">
                         <div class="text-center mb-4">
-                            <i class="bi-bluetooth display-1 text-primary"></i>
+                            <i class="bi-bluetooth display-1 text-primary" id="header-icon"></i>
                             <h1 class="h2 mt-3 mb-2">mcumgr web</h1>
-                            <p class="text-muted">Web Bluetooth Device Manager</p>
+                            <p class="text-muted">Web Bluetooth &amp; Serial Device Manager</p>
                         </div>
 
-                        <div class="alert alert-primary" role="alert" id="bluetooth-is-available">
+                        <div class="alert alert-primary" role="alert" id="transport-is-available">
                             <i class="bi-info-circle-fill me-2"></i>
-                            <strong><span id="bluetooth-is-available-message"></span></strong>
+                            <strong><span id="transport-is-available-message"></span></strong>
                             <p class="mb-0 mt-2 small">
                               This tool is compatible with desktops (or laptops) with the <b>latest Chrome and Edge</b> browsers (other Chromium-based browsers may also work), and working
-                              Bluetooth connection (most laptops have them these days). You can also try it from Chrome on Android, or Bluefy on iOS/iPadOS.
+                              Bluetooth connection or serial port. You can also try it from Chrome on Android, or Bluefy on iOS/iPadOS.
                             </p>
                         </div>
 
@@ -61,16 +61,29 @@
                         </div>
 
                         <div id="connect-block" style="display: none;">
-                            <div class="mb-3">
-                                <label for="device-name-input" class="form-label">Device Name Filter (Optional)</label>
-                                <div class="form-text mb-2">Only show devices whose name starts with this prefix</div>
-                                <input id="device-name-input" type="text" class="form-control form-control-lg" placeholder="e.g., 'Quantum' to filter devices starting with Quantum">
+                            <!-- Bluetooth connect section -->
+                            <div id="bluetooth-connect-section" style="display: none;">
+                                <div class="mb-3">
+                                    <label for="device-name-input" class="form-label">Device Name Filter (Optional)</label>
+                                    <div class="form-text mb-2">Only show devices whose name starts with this prefix</div>
+                                    <input id="device-name-input" type="text" class="form-control form-control-lg" placeholder="e.g., 'Quantum' to filter devices starting with Quantum">
+                                </div>
+                                <div class="d-grid">
+                                    <button id="button-connect" type="submit" class="btn btn-primary btn-lg">
+                                        <i class="bi-bluetooth me-2"></i> Connect via Bluetooth
+                                    </button>
+                                </div>
                             </div>
-                            <div class="d-grid">
-                                <button id="button-connect" type="submit" class="btn btn-primary btn-lg">
-                                    <i class="bi-bluetooth me-2"></i> Connect to Device
-                                </button>
+                            <!-- Serial connect section -->
+                            <div id="serial-connect-section" style="display: none;">
+                                <div class="d-grid mt-2">
+                                    <button id="button-connect-serial" type="submit" class="btn btn-secondary btn-lg">
+                                        <i class="bi-usb-symbol me-2"></i> Connect via Serial
+                                    </button>
+                                </div>
                             </div>
+                            <!-- Separator when both are available -->
+                            <div id="transport-separator" class="text-center text-muted my-3" style="display: none;">— or —</div>
                         </div>
 
                         <div class="credits-section mt-4 pt-4 border-top border-light text-center">

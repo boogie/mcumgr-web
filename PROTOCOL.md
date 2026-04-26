@@ -1,6 +1,6 @@
 # MCU Manager Protocol Specification
 
-This document describes the Simple Management Protocol (SMP) implementation used by MCUManager for communicating with devices over Bluetooth Low Energy.
+This document describes the Simple Management Protocol (SMP) implementation used by MCUManager for communicating with devices over Bluetooth Low Energy or Serial.
 
 ## Table of Contents
 
@@ -13,6 +13,7 @@ This document describes the Simple Management Protocol (SMP) implementation used
 - [CBOR Encoding](#cbor-encoding)
 - [MCUboot Image Format](#mcuboot-image-format)
 - [Bluetooth Transport](#bluetooth-transport)
+- [Serial Transport](#serial-transport)
 - [External References](#external-references)
 
 ## Overview
@@ -23,7 +24,7 @@ MCU Manager uses the **Simple Management Protocol (SMP)** for device management 
 - Binary protocol with 8-byte header + CBOR payload
 - Request/response model
 - Organized into management groups (OS, Image, Stats, etc.)
-- Transport-agnostic (this implementation uses Bluetooth LE)
+- Transport-agnostic (this implementation supports Bluetooth LE and Serial)
 - Sequence numbers for matching requests and responses
 
 ## SMP Protocol Structure
@@ -440,6 +441,113 @@ CHARACTERISTIC_UUID = 'da2e7828-fbce-4e01-ae9e-261174997c48'
 - Resilient to temporary connection issues
 - Transparent to user during long uploads
 - No data loss on reconnection
+
+## Serial Transport
+
+### Overview
+
+Serial transport uses the mcumgr console framing protocol for SMP messages. This allows communication over UART/USB serial connections where raw binary data isn't suitable.
+
+### Console Framing Format
+
+SMP messages are wrapped in a console frame for serial transmission:
+
+**Start Frame (first fragment):**
+```
+0x06 0x09 <base64-encoded-data> '\n'
+```
+
+**Continuation Frame (subsequent fragments):**
+```
+0x04 0x14 <base64-encoded-data> '\n'
+```
+
+**Frame Components:**
+| Byte(s) | Description |
+|---------|-------------|
+| 0x06 0x09 | Start frame marker |
+| 0x04 0x14 | Continuation frame marker |
+| Base64 data | Encoded fragment |
+| '\n' (0x0A) | Line terminator |
+
+### Packet Structure
+
+Before base64 encoding, each fragment contains:
+
+```
++--------+--------+--------+--------+----------------+
+|  Len   |  Len   |  CRC   |  CRC   |    Data        |
+|  High  |  Low   |  High  |  Low   |   (payload)    |
++--------+--------+--------+--------+----------------+
+```
+
+**Fields:**
+| Field | Size | Description |
+|-------|------|-------------|
+| Length | 2 bytes | Total SMP message length (big-endian) |
+| CRC | 2 bytes | CRC16-ITU-T checksum (big-endian) |
+| Data | Variable | SMP message fragment |
+
+**Note:** Length and CRC appear only in the first fragment.
+
+### CRC16-ITU-T Checksum
+
+The CRC is calculated over the entire SMP message using CRC16-ITU-T polynomial:
+
+```javascript
+function crc16ITUT(seed, data) {
+    seed &= 0xFFFF;
+    for (const byte of data) {
+        seed = ((seed >> 8) | (seed << 8)) & 0xFFFF;
+        seed ^= (byte & 0xFF);
+        seed ^= (seed & 0xFF) >> 4;
+        seed ^= (seed << 12) & 0xFFFF;
+        seed ^= ((seed & 0xFF) << 5) & 0xFFFF;
+    }
+    return seed;
+}
+```
+
+### MTU Considerations
+
+**Serial MTU:** 140 bytes (default)
+- Smaller than Bluetooth due to base64 encoding overhead
+- Each 3 bytes of binary becomes 4 bytes of base64
+- Effective payload is ~75% of MTU after encoding
+
+### Communication Flow
+
+**Connection:**
+1. User selects serial port via `navigator.serial.requestPort()`
+2. Open port with baud rate: `port.open({ baudRate: 115200 })`
+3. Create readable stream with line transformer
+4. Create writable stream
+
+**Sending Commands:**
+1. Construct SMP message (8-byte header + CBOR payload)
+2. Calculate CRC16-ITU-T
+3. Prepend length and CRC
+4. Base64 encode
+5. Split into fragments if needed
+6. Send each fragment with appropriate frame marker
+
+**Receiving Responses:**
+1. Read lines from serial port
+2. Identify frame markers (0x06 0x09 or 0x04 0x14)
+3. Accumulate base64 data
+4. Decode complete frame
+5. Verify CRC
+6. Process SMP message
+
+### Differences from Bluetooth
+
+| Aspect | Bluetooth | Serial |
+|--------|-----------|--------|
+| Auto-reconnect | Yes | No |
+| MTU | 400 bytes | 140 bytes |
+| Encoding | Binary | Base64 |
+| Frame markers | None | Console escape codes |
+| CRC | BLE handles | Application layer |
 
 ## Return Codes
 
