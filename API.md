@@ -19,13 +19,14 @@ This document provides comprehensive documentation for the MCUManager JavaScript
 
 ## Overview
 
-MCUManager provides a JavaScript API for communicating with devices running Mynewt OS over Web Bluetooth. The library implements the Simple Management Protocol (SMP) with CBOR encoding for efficient binary communication.
+MCUManager provides a JavaScript API for communicating with devices running Mynewt OS (or any SMP-compatible firmware) over Web Bluetooth or Web Serial. The library implements the Simple Management Protocol (SMP) with CBOR encoding for efficient binary communication.
 
 **Key Features:**
+- Multiple transport support (Bluetooth LE and Serial)
 - Firmware upload and verification
 - Image state management (test, confirm, erase)
 - Device reset and echo commands
-- Automatic reconnection on connection loss
+- Automatic reconnection on connection loss (Bluetooth)
 - Progress tracking for firmware uploads
 - Configurable timeout and retry mechanisms
 
@@ -52,8 +53,11 @@ mcumgr
   .onMessage(msg => console.log('Received:', msg))
   .onImageUploadProgress(progress => console.log(`Upload: ${progress.percentage}%`));
 
-// Connect to device
-await mcumgr.connect();
+// Connect via Bluetooth (default)
+await mcumgr.connect(TRANSPORT_BLUETOOTH);
+
+// Or connect via Serial
+await mcumgr.connect(TRANSPORT_SERIAL);
 
 // Get image state
 await mcumgr.cmdImageState();
@@ -96,42 +100,60 @@ const mcumgr = new MCUManager({
 
 ### Connection Methods
 
-#### `connect(filters)`
+#### `connect(type, filters)`
 
-Initiates a connection to a BLE device. Opens the browser's device picker if no device was previously selected.
+Initiates a connection to a device via the specified transport.
 
 **Parameters:**
-- `filters` (Array, optional): Web Bluetooth filters to restrict device selection
-  - Example: `[{ name: 'MyDevice' }]` or `[{ services: [serviceUuid] }]`
+- `type` (String, optional): Transport type. Defaults to `TRANSPORT_BLUETOOTH`
+  - `TRANSPORT_BLUETOOTH`: Connect via Web Bluetooth
+  - `TRANSPORT_SERIAL`: Connect via Web Serial
+- `filters` (Array, optional): Transport-specific filters for device selection
+  - For Bluetooth: Web Bluetooth filters like `[{ name: 'MyDevice' }]` or `[{ namePrefix: 'NRF' }]`
+  - For Serial: Not currently used (device picker is shown)
 
 **Returns:** `Promise<void>`
 
 **Example:**
 ```javascript
-// Connect to any device
+// Connect via Bluetooth (default)
 await mcumgr.connect();
+await mcumgr.connect(TRANSPORT_BLUETOOTH);
 
-// Connect to device with specific name
+// Connect via Bluetooth with name filter
+await mcumgr.connect(TRANSPORT_BLUETOOTH, [{ namePrefix: 'NRF' }]);
+
+// Connect via Serial
+await mcumgr.connect(TRANSPORT_SERIAL);
+
+// Backward compatible - filters only (assumes Bluetooth)
 await mcumgr.connect([{ name: 'MyNRF52' }]);
-
-// Connect to device with name prefix
-await mcumgr.connect([{ namePrefix: 'NRF' }]);
 ```
 
 **Behavior:**
+- Opens the browser's device picker
 - On successful connection, triggers `onConnect` callback
-- On disconnection (unless user-initiated), automatically attempts to reconnect after 1 second
-- Auto-reconnect continues firmware upload if one was in progress
+- Bluetooth: On disconnection (unless user-initiated), automatically attempts to reconnect after 1 second
+- Serial: Does not auto-reconnect (disconnection is typically intentional)
+- Auto-reconnect (Bluetooth) continues firmware upload if one was in progress
+- Serial uses smaller MTU (140 bytes) due to console framing overhead
 
 #### `disconnect()`
 
-Disconnects from the currently connected device. Prevents automatic reconnection.
+Disconnects from the currently connected device. For Bluetooth, prevents automatic reconnection.
 
 **Returns:** `Promise<void>`
 
 **Example:**
 ```javascript
 mcumgr.disconnect();
+```
+
+### Transport Constants
+
+```javascript
+const TRANSPORT_BLUETOOTH = 'bluetooth';  // Web Bluetooth transport
+const TRANSPORT_SERIAL = 'serial';        // Web Serial transport
 ```
 
 ### Event Handlers

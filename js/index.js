@@ -7,6 +7,7 @@ const screens = {
 const deviceName = document.getElementById('device-name');
 const deviceNameInput = document.getElementById('device-name-input');
 const connectButton = document.getElementById('button-connect');
+const connectSerialButton = document.getElementById('button-connect-serial');
 const echoButton = document.getElementById('button-echo');
 const disconnectButton = document.getElementById('button-disconnect');
 const resetButton = document.getElementById('button-reset');
@@ -20,9 +21,12 @@ const fileStatus = document.getElementById('file-status');
 const fileImage = document.getElementById('file-image');
 const fileUpload = document.getElementById('file-upload');
 const fileCancel = document.getElementById('file-cancel');
-const bluetoothIsAvailable = document.getElementById('bluetooth-is-available');
-const bluetoothIsAvailableMessage = document.getElementById('bluetooth-is-available-message');
+const transportIsAvailable = document.getElementById('transport-is-available');
+const transportIsAvailableMessage = document.getElementById('transport-is-available-message');
 const connectBlock = document.getElementById('connect-block');
+const bluetoothConnectSection = document.getElementById('bluetooth-connect-section');
+const serialConnectSection = document.getElementById('serial-connect-section');
+const transportSeparator = document.getElementById('transport-separator');
 const connectionError = document.getElementById('connection-error');
 const connectionErrorMessage = document.getElementById('connection-error-message');
 const closeConnectionError = document.getElementById('close-connection-error');
@@ -30,19 +34,124 @@ const uploadDropZone = document.getElementById('upload-drop-zone');
 const uploadIcon = document.getElementById('upload-icon');
 const uploadDropTitle = document.getElementById('upload-drop-title');
 const uploadDropSubtitle = document.getElementById('upload-drop-subtitle');
+const smpV2Toggle = document.getElementById('smp-v2-toggle');
 
-if (navigator && navigator.bluetooth && navigator.bluetooth.getAvailability()) {
-    bluetoothIsAvailableMessage.innerText = 'Bluetooth is available in your browser.';
-    bluetoothIsAvailable.className = 'alert alert-success';
+// Detect available transports
+const bluetoothAvailable = !!(navigator && navigator.bluetooth && navigator.bluetooth.getAvailability());
+const serialAvailable = !!(navigator && navigator.serial);
+
+if (bluetoothAvailable || serialAvailable) {
+    const transports = [];
+    if (bluetoothAvailable) transports.push('Bluetooth');
+    if (serialAvailable) transports.push('Serial');
+    transportIsAvailableMessage.innerText = `${transports.join(' and ')} ${transports.length > 1 ? 'are' : 'is'} available in your browser.`;
+    transportIsAvailable.className = 'alert alert-success';
     connectBlock.style.display = 'block';
+    
+    // Show appropriate connect sections
+    if (bluetoothAvailable) {
+        bluetoothConnectSection.style.display = 'block';
+    }
+    if (serialAvailable) {
+        serialConnectSection.style.display = 'block';
+    }
+    // Show separator if both are available
+    if (bluetoothAvailable && serialAvailable) {
+        transportSeparator.style.display = 'block';
+    }
 } else {
-    bluetoothIsAvailable.className = 'alert alert-danger';
-    bluetoothIsAvailableMessage.innerText = 'Bluetooth is not available in your browser.';
+    transportIsAvailable.className = 'alert alert-danger';
+    transportIsAvailableMessage.innerText = 'Neither Bluetooth nor Serial is available in your browser.';
 }
 
 let file = null;
 let fileData = null;
 let images = [];
+
+const IMAGE_RC_MESSAGES = {
+    0: 'Success',
+    1: 'Unknown image-management error',
+    2: 'Failed to query flash configuration',
+    3: 'No image in requested slot',
+    4: 'Image has no TLVs',
+    5: 'Invalid image TLV',
+    6: 'Multiple hash TLVs found',
+    7: 'Invalid TLV size',
+    8: 'Image hash not found',
+    9: 'No free slot available',
+    10: 'Flash open failed',
+    11: 'Flash read failed',
+    12: 'Flash write failed',
+    13: 'Flash erase failed',
+    14: 'Invalid slot',
+    15: 'Out of memory',
+    16: 'Flash context already set',
+    17: 'Flash context not set',
+    18: 'Flash device is null',
+    19: 'Invalid page offset',
+    20: 'Invalid offset',
+    21: 'Invalid length',
+    22: 'Invalid image header',
+    23: 'Invalid image header magic',
+    24: 'Invalid hash',
+    25: 'Invalid flash address',
+    26: 'Failed to get running image version',
+    27: 'Current version is newer than upload',
+    28: 'An image is already pending',
+    29: 'Invalid image vector table',
+    30: 'Image is too large',
+    31: 'Image data overrun',
+    32: 'Image confirmation denied',
+    33: 'Cannot test active slot — the image in slot 1 may be identical to the running image',
+    34: 'Active slot could not be determined'
+};
+
+function getImageRc(data) {
+    if (!data) {
+        return null;
+    }
+
+    if (typeof data.rc === 'number') {
+        return data.rc;
+    }
+
+    if (data.err && typeof data.err.rc === 'number') {
+        return data.err.rc;
+    }
+
+    return null;
+}
+
+function getImageRcMessage(data) {
+    const rc = getImageRc(data);
+    if (rc === null) {
+        return null;
+    }
+
+    const base = IMAGE_RC_MESSAGES[rc] || `Image management error code ${rc}`;
+    if (data && data.err && typeof data.err.group === 'number') {
+        return `${base} (group ${data.err.group})`;
+    }
+
+    return base;
+}
+
+function getSecondaryImage() {
+    return images.find(image => image.slot === 1) || images.find(image => image.active === false);
+}
+
+function getActiveImage() {
+    return images.find(image => image.active === true) || images[0];
+}
+
+function updateImageActionButtons(imageArray) {
+    const secondary = imageArray.find(image => image.slot === 1) || imageArray.find(image => image.active === false);
+    const active = imageArray.find(image => image.active === true) || imageArray[0];
+
+    testButton.disabled = !(secondary && secondary.pending === false && secondary.hash);
+    confirmButton.disabled = !(active && active.confirmed === false && active.hash);
+    console.log('[DEBUG] Button states set - test:', testButton.disabled, 'confirm:', confirmButton.disabled);
+}
 
 deviceNameInput.value = localStorage.getItem('deviceName');
 deviceNameInput.addEventListener('change', () => {
@@ -116,6 +225,36 @@ mcumgr.onMessage(({ op, group, id, data, length }) => {
             switch (id) {
                 case IMG_MGMT_ID_STATE:
                     console.log('[DEBUG] Image state response:', { op, group, id, data, length });
+
+                    // For write responses, check rc code first
+                    if (op === MGMT_OP_WRITE_RSP) {
+                        const rc = getImageRc(data);
+                        console.log('[DEBUG] Write response rc:', rc);
+                        if (rc !== null && rc !== 0) {
+                            const rcMessage = getImageRcMessage(data);
+                            console.error('[ERROR] Image write command failed:', rcMessage, 'Full response:', data);
+                            fileInfo.innerHTML = `<span class="text-danger">Image command failed: ${rcMessage}</span>`;
+                            // Still refresh state to see current device state
+                            console.log('[DEBUG] Refreshing state after write error');
+                            mcumgr.cmdImageState();
+                            return;
+                        }
+                        // Write response with rc:0 - refresh state to see results
+                        if (rc === 0 || rc === undefined) {
+                            console.log('[DEBUG] Image write response successful; refreshing state');
+                            mcumgr.cmdImageState();
+                            return;
+                        }
+                    }
+
+                    // For read responses, validate data structure
+                    const rc = getImageRc(data);
+                    if (rc !== null && rc !== 0) {
+                        const rcMessage = getImageRcMessage(data);
+                        console.error('[ERROR] Image state command failed:', rcMessage, data);
+                        fileInfo.innerHTML = `<span class="text-danger">Image command failed: ${rcMessage}</span>`;
+                        return;
+                    }
 
                     if (!data) {
                         console.error('[ERROR] No data received in image state response');
@@ -209,10 +348,8 @@ mcumgr.onMessage(({ op, group, id, data, length }) => {
                         });
                     });
 
-                    console.log('[DEBUG] Setting button states...');
-                    testButton.disabled = !(data.images && data.images.length > 1 && data.images[1] && data.images[1].pending === false);
-                    confirmButton.disabled = !(data.images && data.images.length > 0 && data.images[0] && data.images[0].confirmed === false);
-                    console.log('[DEBUG] Button states set - test:', testButton.disabled, 'confirm:', confirmButton.disabled);
+                        console.log('[DEBUG] Setting button states...');
+                        updateImageActionButtons(data.images);
                     break;
             }
             break;
@@ -457,7 +594,12 @@ connectButton.addEventListener('click', async () => {
     if (deviceNameInput.value) {
         filters = [{ namePrefix: deviceNameInput.value }];
     };
-    await mcumgr.connect(filters);
+    await mcumgr.connect(TRANSPORT_BLUETOOTH, filters);
+});
+
+connectSerialButton.addEventListener('click', async () => {
+    mcumgr.smpVersion = (smpV2Toggle && smpV2Toggle.checked) ? SMP_VERSION_2 : SMP_VERSION_1;
+    await mcumgr.connect(TRANSPORT_SERIAL);
 });
 
 disconnectButton.addEventListener('click', async () => {
@@ -482,13 +624,25 @@ eraseButton.addEventListener('click', async () => {
 });
 
 testButton.addEventListener('click', async () => {
-    if (images.length > 1 && images[1].pending === false) {
-        await mcumgr.cmdImageTest(images[1].hash);
+    const secondary = getSecondaryImage();
+    if (secondary && secondary.pending === false && secondary.hash) {
+        console.log('[DEBUG] Test button clicked, sending test command for slot', secondary.slot, 'with hash:', secondary.hash);
+        fileInfo.innerHTML = '<span class="text-info">Sending test command...</span>';
+        try {
+            await mcumgr.cmdImageTest(secondary.hash);
+            // Response will be handled by the onMessage callback
+        } catch (error) {
+            console.error('[ERROR] Test command failed:', error);
+            fileInfo.innerHTML = `<span class="text-danger">Test command error: ${error.message}</span>`;
+        }
+    } else {
+        console.warn('[WARN] Cannot test image - secondary image not ready', { secondary });
     }
 });
 
 confirmButton.addEventListener('click', async () => {
-    if (images.length > 0 && images[0].confirmed === false) {
-        await mcumgr.cmdImageConfirm(images[0].hash);
+    const active = getActiveImage();
+    if (active && active.confirmed === false && active.hash) {
+        await mcumgr.cmdImageConfirm(active.hash);
     }
 });

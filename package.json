@@ -6,6 +6,7 @@
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "start": "python3 -m http.server 8080 --directory .",
     "prepare": "husky install"
   },
   "keywords": [
