@@ -81,6 +81,12 @@
                                         <i class="bi-usb-symbol me-2"></i> Connect via Serial
                                     </button>
                                 </div>
+                                <div class="form-check mt-2">
+                                    <input class="form-check-input" type="checkbox" id="smp-v2-toggle" checked>
+                                    <label class="form-check-label small text-muted" for="smp-v2-toggle">
+                                        Use SMP v2 protocol <span class="text-secondary">(uncheck for older firmware)</span>
+                                    </label>
+                                </div>
                             </div>
                             <!-- Separator when both are available -->
                             <div id="transport-separator" class="text-center text-muted my-3" style="display: none;">— or —</div>
@@ -197,6 +203,6 @@
 </div>
 
 <script src="js/cbor.js"></script>
-<script src="js/mcumgr.js?v=6"></script>
-<script src="js/index.js?v=6"></script>
+<script src="js/mcumgr.js?v=8"></script>
+<script src="js/index.js?v=8"></script>
 </main>

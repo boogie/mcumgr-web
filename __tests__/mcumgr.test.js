@@ -8,8 +8,12 @@ const {
   crc16ITUT,
   TRANSPORT_BLUETOOTH,
   TRANSPORT_SERIAL,
+  SMP_VERSION_1,
+  SMP_VERSION_2,
   MGMT_OP_READ,
+  MGMT_OP_READ_RSP,
   MGMT_OP_WRITE,
+  MGMT_OP_WRITE_RSP,
   MGMT_GROUP_ID_OS,
   MGMT_GROUP_ID_IMAGE,
   OS_MGMT_ID_ECHO,
@@ -403,6 +407,89 @@ describe('MCUManager', () => {
 
       await manager._sendMessage(MGMT_OP_READ, MGMT_GROUP_ID_OS, OS_MGMT_ID_ECHO, {});
       expect(manager._seq).toBe(0);
+    });
+  });
+
+  describe('SMP Version Encoding', () => {
+    beforeEach(() => {
+      manager._transport = {
+        sendMessage: jest.fn().mockResolvedValue(undefined),
+        smpVersion: SMP_VERSION_1
+      };
+    });
+
+    test('should encode SMP v1 (version=0) in byte 0 by default', async () => {
+      await manager._sendMessage(MGMT_OP_READ, MGMT_GROUP_ID_OS, OS_MGMT_ID_ECHO, {});
+      const sent = manager._transport.sendMessage.mock.calls[0][0];
+      expect(sent[0]).toBe(MGMT_OP_READ);
+    });
+
+    test('should encode SMP v2 (version=1) in byte 0 when transport requests it', async () => {
+      manager._transport.smpVersion = SMP_VERSION_2;
+      await manager._sendMessage(MGMT_OP_WRITE, MGMT_GROUP_ID_IMAGE, IMG_MGMT_ID_STATE, {});
+      const sent = manager._transport.sendMessage.mock.calls[0][0];
+      // byte0 = op(2) | (version(1) << 3) = 2 | 8 = 10
+      expect(sent[0]).toBe(MGMT_OP_WRITE | (SMP_VERSION_2 << 3));
+    });
+
+    test('should prefer explicit smpVersion over transport default', async () => {
+      manager._transport.smpVersion = SMP_VERSION_1;
+      manager.smpVersion = SMP_VERSION_2;
+      await manager._sendMessage(MGMT_OP_READ, MGMT_GROUP_ID_OS, OS_MGMT_ID_ECHO, {});
+      const sent = manager._transport.sendMessage.mock.calls[0][0];
+      expect(sent[0]).toBe(MGMT_OP_READ | (SMP_VERSION_2 << 3));
+    });
+
+    test('should mask version bits when parsing response in _processMessage', () => {
+      const mockCallback = jest.fn();
+      manager.onMessage(mockCallback);
+
+      global.CBOR.decode.mockReturnValue({ rc: 0, test: 'data' });
+
+      // Simulate SMP v2 response: byte0 = op(1) | (version(1) << 3) = 1 | 8 = 9
+      const message = new Uint8Array([
+        MGMT_OP_READ_RSP | (SMP_VERSION_2 << 3),
+        0x00, 0x00, 0x00,
+        0x00, MGMT_GROUP_ID_IMAGE,
+        0x05, IMG_MGMT_ID_STATE,
+      ]);
+
+      manager._processMessage(message);
+
+      expect(mockCallback).toHaveBeenCalledWith({
+        op: MGMT_OP_READ_RSP,
+        group: MGMT_GROUP_ID_IMAGE,
+        id: IMG_MGMT_ID_STATE,
+        data: { rc: 0, test: 'data' },
+        length: 0
+      });
+    });
+
+    test('should handle SMP v2 error format in upload responses', () => {
+      manager._uploadIsInProgress = true;
+      manager._imageUploadErrorCallback = jest.fn();
+
+      // SMP v2 error: {err: {group: 1, rc: 5}}
+      global.CBOR.decode.mockReturnValue({ err: { group: 1, rc: 5 } });
+
+      const message = new Uint8Array([
+        MGMT_OP_WRITE | (SMP_VERSION_2 << 3),
+        0x00, 0x00, 0x00,
+        0x00, MGMT_GROUP_ID_IMAGE,
+        0x05, IMG_MGMT_ID_UPLOAD,
+      ]);
+
+      manager._processMessage(message);
+
+      expect(manager._uploadIsInProgress).toBe(false);
+      expect(manager._imageUploadErrorCallback).toHaveBeenCalledWith(
+        expect.objectContaining({ errorCode: 5 })
+      );
+    });
+
+    test('MCUTransport base class defaults to SMP v1', () => {
+      const transport = new MCUTransport();
+      expect(transport.smpVersion).toBe(SMP_VERSION_1);
     });
   });
 

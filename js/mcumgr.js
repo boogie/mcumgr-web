@@ -37,6 +37,10 @@ const IMG_MGMT_ID_ERASE = 5;
 const TRANSPORT_BLUETOOTH = 'bluetooth';
 const TRANSPORT_SERIAL = 'serial';
 
+// SMP protocol versions
+const SMP_VERSION_1 = 0;
+const SMP_VERSION_2 = 1;
+
 /**
  * Port of Zephyr's crc16_itu_t()
  * @param {number} seed - 16-bit CRC seed value
@@ -289,6 +293,10 @@ class MCUTransport {
         if (this._rawMessageCallback) this._rawMessageCallback(message);
     }
 
+    get smpVersion() {
+        return SMP_VERSION_1;
+    }
+
     // Abstract methods - must be implemented by subclasses
     async connect(filters) {
         throw new Error('connect() must be implemented by subclass');
@@ -465,8 +473,15 @@ class MCUTransportSerial extends MCUTransport {
 
             this._inputStream = new TransformStream(new LineTransformer());
             this._inputStreamClosed = this._port.readable.pipeTo(this._inputStream.writable);
+            this._inputStreamClosed.catch((error) => {
+                // A lost serial device rejects the stream; treat as disconnect, not fatal crash.
+                this._logger.info(error);
+            });
             this._messageStream = new TransformStream(new ConsoleDeframerTransformer());
             this._messageStreamClosed = this._inputStream.readable.pipeTo(this._messageStream.writable);
+            this._messageStreamClosed.catch((error) => {
+                this._logger.info(error);
+            });
             this._reader = this._messageStream.readable.getReader();
             this._readIncoming(this._reader);
             this._writer = this._port.writable.getWriter();
@@ -566,14 +581,20 @@ class MCUTransportSerial extends MCUTransport {
     }
 
     async _readIncoming(reader) {
-        while (true) {
-            const { value, done } = await reader.read();
-            if (value) {
-                this._rawMessage(value);
+        try {
+            while (true) {
+                const { value, done } = await reader.read();
+                if (value) {
+                    this._rawMessage(value);
+                }
+                if (done) {
+                    break;
+                }
             }
-            if (done) {
-                break;
-            }
+        } catch (error) {
+            // Device unplug/reset during read should not surface as uncaught promise rejection.
+            this._logger.info(error);
+            await this._disconnected(error);
         }
     }
 }
@@ -600,7 +621,10 @@ class MCUManager {
         this._imageUploadProgressCallback = null;
         this._imageUploadErrorCallback = null;
         this._uploadIsInProgress = false;
-        this._chunkTimeout = 5000; // 5000ms, if sending a chunk is not completed in this time, it will be retried
+        this._chunkTimeoutDefault = 5000;
+        this._chunkTimeoutMax = 15000;
+        this._chunkTimeout = this._chunkTimeoutDefault;
+        this._uploadChunkSizeLimit = Number.POSITIVE_INFINITY;
         this._consecutiveTimeouts = 0;
         this._maxConsecutiveTimeouts = 2; // After this many timeouts, try increasing timeout
         this._maxTotalTimeouts = 6; // After this many total timeouts, give up
@@ -608,6 +632,15 @@ class MCUManager {
         this._logger = di.logger || { info: console.log, error: console.error };
         this._seq = 0;
         this._reconnectDelay = di.reconnectDelay || 1000;
+    }
+
+    set smpVersion(version) {
+        this._smpVersion = version;
+    }
+
+    get smpVersion() {
+        if (this._smpVersion !== undefined) return this._smpVersion;
+        return this._transport ? this._transport.smpVersion : SMP_VERSION_1;
     }
 
     /**
@@ -628,6 +661,9 @@ class MCUManager {
                     logger: this._logger,
                     reconnectDelay: this._reconnectDelay
                 });
+                this._chunkTimeoutDefault = 5000;
+                this._chunkTimeoutMax = 15000;
+                this._uploadChunkSizeLimit = Number.POSITIVE_INFINITY;
                 break;
             case TRANSPORT_SERIAL:
                 this._transport = new MCUTransportSerial({
@@ -635,6 +671,10 @@ class MCUManager {
                 });
                 // Serial uses smaller MTU due to console framing overhead
                 this._mtu = 140;
+                // Console-framed serial links can need more time per flash write.
+                this._chunkTimeoutDefault = 10000;
+                this._chunkTimeoutMax = 30000;
+                this._uploadChunkSizeLimit = 64;
                 break;
             default:
                 throw new Error(`Unknown transport type: ${type}`);
@@ -712,6 +752,9 @@ class MCUManager {
     }
 
     async _sendMessage(op, group, id, data) {
+        const smpVersion = this._smpVersion !== undefined ? this._smpVersion :
+            (this._transport ? this._transport.smpVersion : SMP_VERSION_1);
+        const byte0 = (op & 0x07) | ((smpVersion & 0x03) << 3);
         const _flags = 0;
         let encodedData = [];
         if (typeof data !== 'undefined') {
@@ -721,14 +764,21 @@ class MCUManager {
         const length_hi = encodedData.length >> 8;
         const group_lo = group & 255;
         const group_hi = group >> 8;
-        const message = [op, _flags, length_hi, length_lo, group_hi, group_lo, this._seq, id, ...encodedData];
+        const message = [byte0, _flags, length_hi, length_lo, group_hi, group_lo, this._seq, id, ...encodedData];
         // console.log('>'  + message.map(x => x.toString(16).padStart(2, '0')).join(' '));
         await this._transport.sendMessage(Uint8Array.from(message));
         this._seq = (this._seq + 1) % 256;
     }
 
     _processMessage(message) {
-        const [op, _flags, length_hi, length_lo, group_hi, group_lo, _seq, id] = message;
+        const op = message[0] & 0x07;
+        const _flags = message[1];
+        const length_hi = message[2];
+        const length_lo = message[3];
+        const group_hi = message[4];
+        const group_lo = message[5];
+        const _seq = message[6];
+        const id = message[7];
         const data = CBOR.decode(message.slice(8).buffer);
         const length = length_hi * 256 + length_lo;
         const group = group_hi * 256 + group_lo;
@@ -748,8 +798,9 @@ class MCUManager {
                 clearTimeout(this._uploadTimeout);
             }
 
-            // Check for error response
-            if (data.rc && data.rc !== 0) {
+            // Check for error response (SMP v1: data.rc, SMP v2: data.err.rc)
+            const uploadErrRc = (data.err && typeof data.err.rc === 'number') ? data.err.rc : data.rc;
+            if (uploadErrRc && uploadErrRc !== 0) {
                 this._uploadIsInProgress = false;
                 const errorMessages = {
                     1: 'Unknown error',
@@ -763,12 +814,12 @@ class MCUManager {
                     9: 'Data is corrupt',
                     10: 'Device is busy'
                 };
-                const errorMsg = errorMessages[data.rc] || `Device returned error code ${data.rc}`;
+                const errorMsg = errorMessages[uploadErrRc] || `Device returned error code ${uploadErrRc}`;
                 this._logger.error(`Upload failed: ${errorMsg}`);
                 if (this._imageUploadErrorCallback) {
                     this._imageUploadErrorCallback({
                         error: `Upload failed: ${errorMsg}`,
-                        errorCode: data.rc,
+                        errorCode: uploadErrRc,
                         consecutiveTimeouts: this._consecutiveTimeouts,
                         totalTimeouts: this._totalTimeouts
                     });
@@ -800,9 +851,27 @@ class MCUManager {
         return this._sendMessage(MGMT_OP_WRITE, MGMT_GROUP_ID_IMAGE, IMG_MGMT_ID_ERASE, {});
     }
     cmdImageTest(hash) {
+        const hashStr = hash instanceof Uint8Array 
+            ? Array.from(hash).map(b => b.toString(16).padStart(2, '0')).join('')
+            : String(hash);
+        console.log('[DEBUG] cmdImageTest: Sending test command', {
+            hashType: hash instanceof Uint8Array ? 'Uint8Array' : typeof hash,
+            hashLength: hash instanceof Uint8Array ? hash.byteLength : hash.length,
+            hashHex: hashStr.substring(0, 16) + '...',
+            confirm: false
+        });
         return this._sendMessage(MGMT_OP_WRITE, MGMT_GROUP_ID_IMAGE, IMG_MGMT_ID_STATE, { hash, confirm: false });
     }
     cmdImageConfirm(hash) {
+        const hashStr = hash instanceof Uint8Array 
+            ? Array.from(hash).map(b => b.toString(16).padStart(2, '0')).join('')
+            : String(hash);
+        console.log('[DEBUG] cmdImageConfirm: Sending confirm command', {
+            hashType: hash instanceof Uint8Array ? 'Uint8Array' : typeof hash,
+            hashLength: hash instanceof Uint8Array ? hash.byteLength : hash.length,
+            hashHex: hashStr.substring(0, 16) + '...',
+            confirm: true
+        });
         return this._sendMessage(MGMT_OP_WRITE, MGMT_GROUP_ID_IMAGE, IMG_MGMT_ID_STATE, { hash, confirm: true });
     }
     _hash(image) {
@@ -839,14 +908,19 @@ class MCUManager {
 
             // If we've had several consecutive timeouts, increase the timeout duration
             if (this._consecutiveTimeouts >= this._maxConsecutiveTimeouts) {
-                this._chunkTimeout = Math.min(this._chunkTimeout * 2, 15000); // Max 15 seconds
+                this._chunkTimeout = Math.min(this._chunkTimeout * 2, this._chunkTimeoutMax);
+                if (this._uploadChunkSizeLimit > 32 && this._uploadChunkSizeLimit !== Number.POSITIVE_INFINITY) {
+                    this._uploadChunkSizeLimit = Math.max(32, Math.floor(this._uploadChunkSizeLimit / 2));
+                    this._logger.info(`Reduced upload chunk size to ${this._uploadChunkSizeLimit} bytes`);
+                }
                 this._logger.info(`Increased chunk timeout to ${this._chunkTimeout}ms`);
                 // Notify UI about timeout adjustment
                 if (this._imageUploadProgressCallback) {
                     this._imageUploadProgressCallback({
                         percentage: Math.floor(this._uploadOffset / this._uploadImage.byteLength * 100),
                         timeoutAdjusted: true,
-                        newTimeout: this._chunkTimeout
+                        newTimeout: this._chunkTimeout,
+                        chunkSizeLimit: this._uploadChunkSizeLimit
                     });
                 }
             }
@@ -862,7 +936,8 @@ class MCUManager {
         }
         this._imageUploadProgressCallback({ percentage: Math.floor(this._uploadOffset / this._uploadImage.byteLength * 100) });
 
-        const length = this._mtu - CBOR.encode(message).byteLength - nmpOverhead;
+        const computedLength = this._mtu - CBOR.encode(message).byteLength - nmpOverhead;
+        const length = Math.max(1, Math.min(computedLength, this._uploadChunkSizeLimit));
 
         message.data = new Uint8Array(this._uploadImage.slice(this._uploadOffset, this._uploadOffset + length));
 
@@ -885,7 +960,7 @@ class MCUManager {
         // Reset timeout tracking
         this._consecutiveTimeouts = 0;
         this._totalTimeouts = 0;
-        this._chunkTimeout = 5000; // Reset to initial value
+        this._chunkTimeout = this._chunkTimeoutDefault;
 
         this._uploadNext();
     }
@@ -1014,6 +1089,47 @@ class MCUManager {
 }
 
 // Export for Node.js (testing) while keeping browser compatibility
+// Make constants available globally for browser script usage
+if (typeof window !== 'undefined') {
+    window.MCUManager = MCUManager;
+    window.MCUTransport = MCUTransport;
+    window.MCUTransportBluetooth = MCUTransportBluetooth;
+    window.MCUTransportSerial = MCUTransportSerial;
+    window.LineTransformer = LineTransformer;
+    window.ConsoleDeframerTransformer = ConsoleDeframerTransformer;
+    window.crc16ITUT = crc16ITUT;
+    window.TRANSPORT_BLUETOOTH = TRANSPORT_BLUETOOTH;
+    window.TRANSPORT_SERIAL = TRANSPORT_SERIAL;
+    window.SMP_VERSION_1 = SMP_VERSION_1;
+    window.SMP_VERSION_2 = SMP_VERSION_2;
+    window.MGMT_OP_READ = MGMT_OP_READ;
+    window.MGMT_OP_READ_RSP = MGMT_OP_READ_RSP;
+    window.MGMT_OP_WRITE = MGMT_OP_WRITE;
+    window.MGMT_OP_WRITE_RSP = MGMT_OP_WRITE_RSP;
+    window.MGMT_GROUP_ID_OS = MGMT_GROUP_ID_OS;
+    window.MGMT_GROUP_ID_IMAGE = MGMT_GROUP_ID_IMAGE;
+    window.MGMT_GROUP_ID_STAT = MGMT_GROUP_ID_STAT;
+    window.MGMT_GROUP_ID_CONFIG = MGMT_GROUP_ID_CONFIG;
+    window.MGMT_GROUP_ID_LOG = MGMT_GROUP_ID_LOG;
+    window.MGMT_GROUP_ID_CRASH = MGMT_GROUP_ID_CRASH;
+    window.MGMT_GROUP_ID_SPLIT = MGMT_GROUP_ID_SPLIT;
+    window.MGMT_GROUP_ID_RUN = MGMT_GROUP_ID_RUN;
+    window.MGMT_GROUP_ID_FS = MGMT_GROUP_ID_FS;
+    window.MGMT_GROUP_ID_SHELL = MGMT_GROUP_ID_SHELL;
+    window.OS_MGMT_ID_ECHO = OS_MGMT_ID_ECHO;
+    window.OS_MGMT_ID_CONS_ECHO_CTRL = OS_MGMT_ID_CONS_ECHO_CTRL;
+    window.OS_MGMT_ID_TASKSTAT = OS_MGMT_ID_TASKSTAT;
+    window.OS_MGMT_ID_MPSTAT = OS_MGMT_ID_MPSTAT;
+    window.OS_MGMT_ID_DATETIME_STR = OS_MGMT_ID_DATETIME_STR;
+    window.OS_MGMT_ID_RESET = OS_MGMT_ID_RESET;
+    window.IMG_MGMT_ID_STATE = IMG_MGMT_ID_STATE;
+    window.IMG_MGMT_ID_UPLOAD = IMG_MGMT_ID_UPLOAD;
+    window.IMG_MGMT_ID_FILE = IMG_MGMT_ID_FILE;
+    window.IMG_MGMT_ID_CORELIST = IMG_MGMT_ID_CORELIST;
+    window.IMG_MGMT_ID_CORELOAD = IMG_MGMT_ID_CORELOAD;
+    window.IMG_MGMT_ID_ERASE = IMG_MGMT_ID_ERASE;
+}
+
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = {
         MCUManager,
@@ -1025,6 +1141,8 @@ if (typeof module !== 'undefined' && module.exports) {
         crc16ITUT,
         TRANSPORT_BLUETOOTH,
         TRANSPORT_SERIAL,
+        SMP_VERSION_1,
+        SMP_VERSION_2,
         MGMT_OP_READ,
         MGMT_OP_READ_RSP,
         MGMT_OP_WRITE,
