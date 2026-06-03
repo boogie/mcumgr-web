@@ -30,7 +30,7 @@ describe('MCUManager', () => {
     test('should initialize with default values', () => {
       expect(manager.SERVICE_UUID).toBe('8d53dc1d-1db7-4cd3-868b-8a527460aa84');
       expect(manager.CHARACTERISTIC_UUID).toBe('da2e7828-fbce-4e01-ae9e-261174997c48');
-      expect(manager._mtu).toBe(400);
+      expect(manager._mtu).toBe(244);
       expect(manager._device).toBeNull();
       expect(manager._seq).toBe(0);
       expect(manager._uploadIsInProgress).toBe(false);
@@ -143,8 +143,11 @@ describe('MCUManager', () => {
       await expect(manager.imageInfo(invalidImage.buffer)).rejects.toThrow('Invalid image (wrong load address)');
     });
 
-    test('should reject image with wrong protected TLV area size', async () => {
-      const invalidImage = new Uint8Array(32);
+    test('should reject image with bad protected TLV magic', async () => {
+      // A non-zero protected TLV area is perfectly valid for real MCUboot
+      // images, so we don't reject it. What IS invalid is a declared protected
+      // TLV area whose info header doesn't start with the 0x6908 magic.
+      const invalidImage = new Uint8Array(64);
       // Correct magic bytes
       invalidImage[0] = 0x3d;
       invalidImage[1] = 0xb8;
@@ -155,13 +158,25 @@ describe('MCUManager', () => {
       invalidImage[5] = 0x00;
       invalidImage[6] = 0x00;
       invalidImage[7] = 0x00;
-      // Header size
-      invalidImage[8] = 0x20; // 32 bytes
+      // Header size = 32
+      invalidImage[8] = 0x20;
       invalidImage[9] = 0x00;
-      // Wrong protected TLV area size (should be 0)
-      invalidImage[10] = 0x01;
+      // Protected TLV area size = 8 (non-zero -> code will look for the magic)
+      invalidImage[10] = 0x08;
       invalidImage[11] = 0x00;
-      await expect(manager.imageInfo(invalidImage.buffer)).rejects.toThrow('Invalid image (wrong protected TLV area size)');
+      // Image size = 16
+      invalidImage[12] = 0x10;
+      invalidImage[13] = 0x00;
+      invalidImage[14] = 0x00;
+      invalidImage[15] = 0x00;
+      // Flags = 0
+      invalidImage[16] = 0x00;
+      invalidImage[17] = 0x00;
+      invalidImage[18] = 0x00;
+      invalidImage[19] = 0x00;
+      // At offset headerSize+imageSize = 48 the protected TLV info header must
+      // start with magic 0x6908; leave it zeroed to simulate corruption.
+      await expect(manager.imageInfo(invalidImage.buffer)).rejects.toThrow('Expected protected TLV magic number');
     });
 
     test('should reject image with incorrect image size', async () => {
@@ -222,7 +237,7 @@ describe('MCUManager', () => {
     });
 
     test('should parse valid image info correctly', async () => {
-      const validImage = new Uint8Array(96); // 32 header + 64 image
+      const validImage = new Uint8Array(108); // 32 header + 64 image + 12 TLV trailer
       // Correct magic bytes
       validImage[0] = 0x3d;
       validImage[1] = 0xb8;
@@ -254,6 +269,23 @@ describe('MCUManager', () => {
       validImage[21] = 0x02; // Minor
       validImage[22] = 0x2c; // Revision low byte (300 = 0x012c)
       validImage[23] = 0x01; // Revision high byte
+
+      // Non-protected TLV trailer at offset headerSize+imageSize = 96.
+      // Real MCUboot images always carry this; imageInfo requires it.
+      // Info header: magic 0x6907 + total area size (includes the 4-byte header).
+      validImage[96] = 0x07; // magic low  (0x6907)
+      validImage[97] = 0x69; // magic high
+      validImage[98] = 0x0c; // total TLV area size = 12 (4 header + 8 entry)
+      validImage[99] = 0x00;
+      // One TLV entry: tag=0x0001, len=4, value=0xAABBCCDD
+      validImage[100] = 0x01; // tag low
+      validImage[101] = 0x00; // tag high
+      validImage[102] = 0x04; // len low
+      validImage[103] = 0x00; // len high
+      validImage[104] = 0xaa;
+      validImage[105] = 0xbb;
+      validImage[106] = 0xcc;
+      validImage[107] = 0xdd;
 
       const info = await manager.imageInfo(validImage.buffer);
       expect(info.version).toBe('1.2.300');

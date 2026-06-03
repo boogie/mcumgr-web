@@ -37,7 +37,7 @@ class MCUManager {
     constructor(di = {}) {
         this.SERVICE_UUID = '8d53dc1d-1db7-4cd3-868b-8a527460aa84';
         this.CHARACTERISTIC_UUID = 'da2e7828-fbce-4e01-ae9e-261174997c48';
-        this._mtu = 400;
+        this._mtu = 244; // max bytes per ATT write (negotiated ATT MTU - 3). 244 suits a 247-MTU link; the upload path re-measures each frame so the CBOR length prefix can't overflow this.
         this._device = null;
         this._service = null;
         this._characteristic = null;
@@ -324,14 +324,27 @@ class MCUManager {
         }
         this._imageUploadProgressCallback({ percentage: Math.floor(this._uploadOffset / this._uploadImage.byteLength * 100) });
 
-        const length = this._mtu - CBOR.encode(message).byteLength - nmpOverhead;
-
+        // Estimate the chunk size, then re-measure with the real data attached.
+        // CBOR encodes `data` as a byte string whose 1-3 byte length prefix is
+        // NOT present when overhead is measured against empty data above, so the
+        // first estimate can run a few bytes over budget. Shrink until the full
+        // SMP frame (8-byte NMP header + CBOR body) fits one ATT write (_mtu).
+        let length = this._mtu - CBOR.encode(message).byteLength - nmpOverhead;
+        if (length < 1) length = 1;
         message.data = new Uint8Array(this._uploadImage.slice(this._uploadOffset, this._uploadOffset + length));
+        while (length > 1 && nmpOverhead + CBOR.encode(message).byteLength > this._mtu) {
+            length -= 1;
+            message.data = new Uint8Array(this._uploadImage.slice(this._uploadOffset, this._uploadOffset + length));
+        }
 
-        // Keep offset for retry
-        // this._uploadOffset += length;
-
-        this._sendMessage(MGMT_OP_WRITE, MGMT_GROUP_ID_IMAGE, IMG_MGMT_ID_UPLOAD, message);
+        // Surface BLE write failures (e.g. a value larger than the negotiated
+        // ATT MTU) instead of letting them become a silent unhandled rejection
+        // that only ever shows up as an upload timeout.
+        try {
+            await this._sendMessage(MGMT_OP_WRITE, MGMT_GROUP_ID_IMAGE, IMG_MGMT_ID_UPLOAD, message);
+        } catch (e) {
+            this._logger.error(`BLE write failed during upload: ${e && e.message ? e.message : e}. If this persists, lower _mtu.`);
+        }
     }
     async cmdUpload(image, slot = 0) {
         if (this._uploadIsInProgress) {
@@ -397,7 +410,7 @@ class MCUManager {
         const view = new DataView(image);
 
         // check header length
-        if (view.length < 32) {
+        if (view.byteLength < 32) {
             throw new Error('Invalid image (too short file)');
         }
 
@@ -420,7 +433,7 @@ class MCUManager {
         info.imageSize = imageSize;
 
         // check image size is correct
-        if (view.length < imageSize + headerSize) {
+        if (view.byteLength < imageSize + headerSize) {
             throw new Error('Invalid image (wrong image size)');
         }
 
