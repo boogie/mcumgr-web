@@ -222,6 +222,15 @@ main.container {
     font-size: 0.85rem;
     color: #6366f1;
     cursor: help;
+    /* Show as much of the hash as fits, then ellipsize — rather than a fixed
+       8-char cut. flex:1 + min-width:0 lets it fill the card next to the copy
+       icon; display:block (overriding .detail-value's flex) enables ellipsis. */
+    display: block;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .hash-copy-icon {
@@ -516,6 +525,81 @@ table tr:hover td {
     font-size: 0.85rem;
     color: #664d03;
     margin-top: 0.5rem;
+}
+
+/* Live upload stats — pills shown only mid-upload; fade in/out and reserve
+   their height so showing/hiding them never shifts the layout. */
+.upload-stats {
+    /* Three equal columns, each pill centred in its own — so a value changing
+       width never moves its neighbours. */
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    justify-items: center;
+    align-items: center;
+    gap: 0.4rem;
+    margin-top: 0.85rem;
+    min-height: 1.9rem;
+    opacity: 0;
+    transition: opacity 0.4s ease;
+}
+
+.upload-stats.visible {
+    opacity: 1;
+}
+
+/* Fixed-width value slots (tabular numerals + min-width) keep each pill a
+   stable size as the digits change. */
+.upload-stat-value {
+    display: inline-block;
+    text-align: center;
+}
+
+#upload-speed { min-width: 4.6em; }
+#upload-eta { min-width: 2.6em; }
+#upload-bytes { min-width: 6.4em; }
+
+.upload-stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    padding: 0.28rem 0.8rem;
+    border-radius: 999px;
+    background: rgba(102, 126, 234, 0.12);
+    color: #5b4b8a;
+    font-size: 0.82rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+}
+
+.upload-stat-pill i {
+    opacity: 0.75;
+    font-size: 0.9em;
+}
+
+/* Persistent post-upload summary. */
+.upload-complete {
+    text-align: center;
+    padding: 0.9rem 1rem;
+    border-radius: 0.85rem;
+    background: linear-gradient(135deg, rgba(102, 126, 234, 0.12) 0%, rgba(118, 75, 162, 0.12) 100%);
+}
+
+.upload-complete-title {
+    font-weight: 600;
+    font-size: 1.05rem;
+    color: #198754;
+}
+
+.upload-complete-title i {
+    margin-right: 0.4rem;
+}
+
+.upload-complete-stats {
+    margin-top: 0.3rem;
+    color: #555;
+    font-size: 0.9rem;
+    font-variant-numeric: tabular-nums;
 }
 
 .file-selected-status,

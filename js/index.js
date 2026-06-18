@@ -20,6 +20,12 @@ const fileStatus = document.getElementById('file-status');
 const fileImage = document.getElementById('file-image');
 const fileUpload = document.getElementById('file-upload');
 const fileCancel = document.getElementById('file-cancel');
+const fastUpload = document.getElementById('fast-upload');
+// Restore the saved "Fast upload" preference (off by default, for compatibility).
+fastUpload.checked = localStorage.getItem('fastUpload') === 'true';
+fastUpload.addEventListener('change', () => {
+    localStorage.setItem('fastUpload', fastUpload.checked ? 'true' : 'false');
+});
 const bluetoothIsAvailable = document.getElementById('bluetooth-is-available');
 const bluetoothIsAvailableMessage = document.getElementById('bluetooth-is-available-message');
 const connectBlock = document.getElementById('connect-block');
@@ -181,7 +187,7 @@ mcumgr.onMessage(({ op, group, id, data, length }) => {
                         imagesHTML += `<div class="detail-row">`;
                         imagesHTML += `<span class="detail-label">Hash</span>`;
                         imagesHTML += `<div class="hash-container">`;
-                        imagesHTML += `<span class="detail-value hash-value" title="${hashStr}">${hashStr.substring(0, 8)}...</span>`;
+                        imagesHTML += `<span class="detail-value hash-value" title="${hashStr}">${hashStr}</span>`;
                         imagesHTML += `<i class="bi-clipboard hash-copy-icon" data-hash="${hashStr}" title="Copy full hash"></i>`;
                         imagesHTML += `</div>`;
                         imagesHTML += `</div>`;
@@ -222,56 +228,99 @@ mcumgr.onMessage(({ op, group, id, data, length }) => {
     }
 });
 
-mcumgr.onImageUploadProgress(({ percentage, timeoutAdjusted, newTimeout }) => {
+// Friendly formatting for the live upload readout.
+function fmtSpeed(kbps) {
+    if (!isFinite(kbps) || kbps <= 0) return '—';
+    return kbps >= 1024 ? `${(kbps / 1024).toFixed(1)} MB/s` : `${kbps.toFixed(1)} KB/s`;
+}
+function fmtDuration(seconds) {
+    const s = Math.round(seconds);
+    if (s < 60) return `${s}s`;
+    return `${Math.floor(s / 60)}m ${String(s % 60).padStart(2, '0')}s`;
+}
+function fmtKB(bytes) {
+    return `${Math.round(bytes / 1024).toLocaleString()} KB`;
+}
+
+let lastStatsAt = 0; // throttles the speed/ETA/size text to ~1 Hz
+
+mcumgr.onImageUploadProgress(({ percentage, kbps, etaSeconds, bytesSent, bytesTotal, statsReady, timeoutAdjusted, newTimeout }) => {
     // Hide drop zone text during upload
     uploadIcon.style.display = 'none';
     uploadDropTitle.style.display = 'none';
     uploadDropSubtitle.style.display = 'none';
 
-    if (timeoutAdjusted) {
+    // Build the progress UI once; afterwards only update values in place so the
+    // layout never reflows as the numbers change.
+    if (!document.getElementById('upload-bar-fill')) {
+        lastStatsAt = 0;
         fileStatus.innerHTML = `
             <div class="upload-progress-container">
                 <div class="upload-progress-text">
-                    <i class="bi-upload me-2"></i>Uploading... ${percentage}%
+                    <i class="bi-upload"></i>Uploading… <span id="upload-pct">0</span>%
                 </div>
                 <div class="progress upload-progress-bar">
-                    <div class="progress-bar" role="progressbar" style="width: ${percentage}%" aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100"></div>
+                    <div class="progress-bar" id="upload-bar-fill" role="progressbar" style="width: 0%"></div>
                 </div>
-                <div class="upload-warning-text">
-                    <i class="bi-exclamation-circle me-1"></i>Device is responding slowly, adjusting timeout to ${newTimeout}ms...
+                <div class="upload-stats" id="upload-stats">
+                    <span class="upload-stat-pill"><i class="bi-lightning-charge-fill"></i><span class="upload-stat-value" id="upload-speed">—</span></span>
+                    <span class="upload-stat-pill"><i class="bi-clock"></i><span class="upload-stat-value" id="upload-eta">—</span></span>
+                    <span class="upload-stat-pill"><i class="bi-hdd"></i><span class="upload-stat-value" id="upload-bytes">—</span></span>
                 </div>
-            </div>
-        `;
-    } else {
-        fileStatus.innerHTML = `
-            <div class="upload-progress-container">
-                <div class="upload-progress-text">
-                    <i class="bi-upload me-2"></i>Uploading... ${percentage}%
-                </div>
-                <div class="progress upload-progress-bar">
-                    <div class="progress-bar" role="progressbar" style="width: ${percentage}%" aria-valuenow="${percentage}" aria-valuemin="0" aria-valuemax="100"></div>
-                </div>
+                <div class="upload-warning-text" id="upload-warning" style="display: none;"></div>
             </div>
         `;
     }
+
+    // Progress bar / percentage update every tick (smooth); the numeric stats
+    // update at most once a second so they don't flicker.
+    document.getElementById('upload-pct').textContent = percentage;
+    document.getElementById('upload-bar-fill').style.width = `${percentage}%`;
+
+    const statsEl = document.getElementById('upload-stats');
+    const showStats = statsReady && percentage >= 3 && percentage <= 96;
+    statsEl.classList.toggle('visible', showStats);
+    const now = Date.now();
+    if (showStats && now - lastStatsAt >= 1000) {
+        lastStatsAt = now;
+        document.getElementById('upload-speed').textContent = fmtSpeed(kbps);
+        document.getElementById('upload-eta').textContent = etaSeconds > 0 ? fmtDuration(etaSeconds) : '—';
+        document.getElementById('upload-bytes').textContent =
+            `${Math.round(bytesSent / 1024).toLocaleString()} / ${Math.round(bytesTotal / 1024).toLocaleString()} KB`;
+    }
+
+    const warnEl = document.getElementById('upload-warning');
+    if (timeoutAdjusted) {
+        warnEl.innerHTML = `<i class="bi-exclamation-circle me-1"></i>Device is responding slowly, adjusting timeout to ${newTimeout}ms…`;
+        warnEl.style.display = '';
+    } else {
+        warnEl.style.display = 'none';
+    }
 });
 
-mcumgr.onImageUploadFinished(() => {
+mcumgr.onImageUploadFinished(({ bytesTotal, elapsedSeconds, avgKbps } = {}) => {
     // Show drop zone text again
     uploadIcon.style.display = '';
     uploadDropTitle.style.display = '';
     uploadDropSubtitle.style.display = '';
 
-    fileStatus.innerText = 'No file selected';
-    fileInfo.innerHTML = '<span class="text-success">✓ Upload complete!</span>';
+    // Persistent summary — left on screen so it can be read/copied (it clears
+    // when the next file is selected).
+    const detail = (bytesTotal && elapsedSeconds)
+        ? `<div class="upload-complete-stats">${fmtKB(bytesTotal)} in ${fmtDuration(elapsedSeconds)} &bull; avg ${fmtSpeed(avgKbps)}</div>`
+        : '';
+    fileStatus.innerHTML = `
+        <div class="upload-complete">
+            <div class="upload-complete-title"><i class="bi-check-circle-fill"></i> Upload complete</div>
+            ${detail}
+        </div>
+    `;
+    fileInfo.innerHTML = '';
     fileImage.value = '';
     file = null;
     fileData = null;
     fileUpload.disabled = true;
     fileCancel.style.display = 'none';
-    setTimeout(() => {
-        fileInfo.innerHTML = '';
-    }, 3000);
     mcumgr.cmdImageState();
 });
 
@@ -353,7 +402,7 @@ fileImage.addEventListener('change', () => {
             infoHTML += `<div class="detail-row">`;
             infoHTML += `<span class="detail-label">Hash</span>`;
             infoHTML += `<div class="hash-container">`;
-            infoHTML += `<span class="detail-value hash-value" title="${info.hash}">${info.hash.substring(0, 8)}...</span>`;
+            infoHTML += `<span class="detail-value hash-value" title="${info.hash}">${info.hash}</span>`;
             infoHTML += `<i class="bi-clipboard upload-hash-copy-icon" data-hash="${info.hash}" title="Copy full hash"></i>`;
             infoHTML += `</div>`;
             infoHTML += `</div>`;
@@ -402,7 +451,7 @@ fileUpload.addEventListener('click', event => {
     fileUpload.disabled = true;
     event.stopPropagation();
     if (file && fileData) {
-        mcumgr.cmdUpload(fileData);
+        mcumgr.cmdUpload(fileData, 0, { fast: fastUpload.checked });
     }
 });
 

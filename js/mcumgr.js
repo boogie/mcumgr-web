@@ -38,6 +38,27 @@ class MCUManager {
         this.SERVICE_UUID = '8d53dc1d-1db7-4cd3-868b-8a527460aa84';
         this.CHARACTERISTIC_UUID = 'da2e7828-fbce-4e01-ae9e-261174997c48';
         this._mtu = 400;
+        this._maxChunkSize = di.maxChunkSize || 128; // Reduced from 400 to 128 bytes for stability
+        this._chunkDelay = di.chunkDelay || 50; // Add 50ms delay between chunks
+        // "Fast upload" preset (opt-in via cmdUpload): bigger chunks and no
+        // inter-chunk delay. Off by default so the tool stays compatible with
+        // any device; the conservative values above are used when it is off.
+        this._fast = false;
+        // In fast mode assume a large MTU (macOS/Chrome negotiate ~512) so chunks
+        // approach the link limit; a chunk that's actually too big is caught and
+        // downgraded below, so this stays safe on devices with a smaller MTU.
+        this._fastMtu = di.fastMtu || 500;
+        this._fastMaxChunkSize = di.fastMaxChunkSize || 512;
+        this._fastChunkDelay = di.fastChunkDelay !== undefined ? di.fastChunkDelay : 0;
+        this._fastChunkCap = this._fastMaxChunkSize; // auto-downgrades if a chunk exceeds the MTU
+        this._fastWindow = di.fastWindow || 8; // chunks kept in flight (pipelined) in fast mode
+        // Windowed-upload state (re-initialised per upload in cmdUpload).
+        this._window = 1;
+        this._sendOffset = 0;
+        this._pumping = false;
+        // Throughput tracking (re-initialised per upload in cmdUpload).
+        this._uploadStartTime = 0;
+        this._speedSamples = [];
         this._device = null;
         this._service = null;
         this._characteristic = null;
@@ -103,7 +124,13 @@ class MCUManager {
                 await this._characteristic.startNotifications();
                 await this._connected();
                 if (this._uploadIsInProgress) {
-                    this._uploadNext();
+                    // Give device time to fully boot and stabilize after restart
+                    // This is important if device restarted during firmware update
+                    this._logger.info('Upload in progress - waiting 2s before resuming...');
+                    setTimeout(() => {
+                        this._logger.info('Resuming upload from offset ' + this._uploadOffset);
+                        this._uploadNext();
+                    }, 2000);
                 }
             } catch (error) {
                 this._logger.error(error);
@@ -270,25 +297,65 @@ class MCUManager {
     _hash(image) {
         return crypto.subtle.digest('SHA-256', image);
     }
+    // Build the progress payload. Speed is a moving average over a short
+    // trailing window (several samples) so the readout and ETA stay stable
+    // instead of jumping; `statsReady` is false until the window is meaningful,
+    // so the caller can hold the display until the rate has settled.
+    _uploadProgress(extra = {}) {
+        const now = Date.now();
+        const sent = this._uploadOffset;
+        const total = this._uploadImage ? this._uploadImage.byteLength : 0;
+        const elapsed = (now - this._uploadStartTime) / 1000;
+
+        const WINDOW_MS = 4000;
+        this._speedSamples.push({ t: now, offset: sent });
+        while (this._speedSamples.length > 3 && now - this._speedSamples[0].t > WINDOW_MS) {
+            this._speedSamples.shift();
+        }
+        const oldest = this._speedSamples[0];
+        const dt = (now - oldest.t) / 1000;
+        const statsReady = dt >= 0.75 && this._speedSamples.length >= 3;
+        const kbps = statsReady && dt > 0 ? ((sent - oldest.offset) / 1024) / dt : 0;
+        const avgKbps = elapsed > 0 ? (sent / 1024) / elapsed : 0;
+        const etaSeconds = kbps > 0 ? Math.max(0, total - sent) / 1024 / kbps : 0;
+        return {
+            percentage: total > 0 ? Math.floor(sent / total * 100) : 0,
+            bytesSent: sent,
+            bytesTotal: total,
+            kbps,
+            avgKbps,
+            etaSeconds,
+            elapsedSeconds: elapsed,
+            statsReady,
+            ...extra,
+        };
+    }
+    // Pump: keep up to `_window` chunks in flight. Called once to start the
+    // upload and again on every acknowledgement (which advances _uploadOffset).
     async _uploadNext() {
+        // Finished once the device has acknowledged the whole image.
         if (this._uploadOffset >= this._uploadImage.byteLength) {
             this._uploadIsInProgress = false;
-            this._imageUploadFinishedCallback();
+            if (this._uploadTimeout) clearTimeout(this._uploadTimeout);
+            const total = this._uploadImage.byteLength;
+            const elapsedSeconds = (Date.now() - this._uploadStartTime) / 1000;
+            const avgKbps = elapsedSeconds > 0 ? (total / 1024) / elapsedSeconds : 0;
+            this._imageUploadFinishedCallback({ bytesTotal: total, elapsedSeconds, avgKbps });
             return;
         }
 
-        // Clear any existing timeout
-        if (this._uploadTimeout) {
-            clearTimeout(this._uploadTimeout);
+        // The send pointer must never lag the acknowledged offset (resynced here
+        // and on timeout so un-acked chunks are resent).
+        if (!(this._sendOffset >= this._uploadOffset)) {
+            this._sendOffset = this._uploadOffset;
         }
-        // Set new timeout
+
+        // (Re)arm the stall timeout — it only fires if acks stop advancing.
+        if (this._uploadTimeout) clearTimeout(this._uploadTimeout);
         this._uploadTimeout = setTimeout(() => {
             this._consecutiveTimeouts++;
             this._totalTimeouts++;
-
             this._logger.info(`Upload chunk timeout (consecutive: ${this._consecutiveTimeouts}, total: ${this._totalTimeouts})`);
-
-            // If we've hit too many total timeouts, give up
             if (this._totalTimeouts >= this._maxTotalTimeouts) {
                 this._uploadIsInProgress = false;
                 const error = `Upload failed: Device not responding after ${this._totalTimeouts} attempts. The device may be too slow or disconnected.`;
@@ -298,42 +365,88 @@ class MCUManager {
                 }
                 return;
             }
-
-            // If we've had several consecutive timeouts, increase the timeout duration
             if (this._consecutiveTimeouts >= this._maxConsecutiveTimeouts) {
                 this._chunkTimeout = Math.min(this._chunkTimeout * 2, 15000); // Max 15 seconds
                 this._logger.info(`Increased chunk timeout to ${this._chunkTimeout}ms`);
-                // Notify UI about timeout adjustment
                 if (this._imageUploadProgressCallback) {
-                    this._imageUploadProgressCallback({
-                        percentage: Math.floor(this._uploadOffset / this._uploadImage.byteLength * 100),
+                    this._imageUploadProgressCallback(this._uploadProgress({
                         timeoutAdjusted: true,
                         newTimeout: this._chunkTimeout
-                    });
+                    }));
                 }
             }
-
+            // Resend everything from the last acknowledged offset.
+            this._sendOffset = this._uploadOffset;
             this._uploadNext();
         }, this._chunkTimeout);
 
-        const nmpOverhead = 8;
-        const message = { data: new Uint8Array(), off: this._uploadOffset };
-        if (this._uploadOffset === 0) {
-            message.len = this._uploadImage.byteLength;
-            message.sha = new Uint8Array(await this._hash(this._uploadImage));
+        // Report progress against the acknowledged offset.
+        this._imageUploadProgressCallback(this._uploadProgress());
+
+        // Avoid two concurrent pumps: an ack arriving mid-send updates the offset
+        // and timeout above, then returns; the running pump keeps the window full
+        // from the refreshed state.
+        if (this._pumping) return;
+        this._pumping = true;
+        try {
+            const window = this._window || 1;
+            const chunkEstimate = this._fast ? this._fastChunkCap : this._maxChunkSize;
+            while (
+                this._uploadIsInProgress &&
+                this._sendOffset < this._uploadImage.byteLength &&
+                (this._sendOffset - this._uploadOffset) < window * chunkEstimate
+            ) {
+                const len = await this._sendChunk(this._sendOffset);
+                if (len === null) return; // hard failure already reported
+                this._sendOffset += len;
+            }
+        } finally {
+            this._pumping = false;
         }
-        this._imageUploadProgressCallback({ percentage: Math.floor(this._uploadOffset / this._uploadImage.byteLength * 100) });
-
-        const length = this._mtu - CBOR.encode(message).byteLength - nmpOverhead;
-
-        message.data = new Uint8Array(this._uploadImage.slice(this._uploadOffset, this._uploadOffset + length));
-
-        // Keep offset for retry
-        // this._uploadOffset += length;
-
-        this._sendMessage(MGMT_OP_WRITE, MGMT_GROUP_ID_IMAGE, IMG_MGMT_ID_UPLOAD, message);
     }
-    async cmdUpload(image, slot = 0) {
+
+    // Build and write one upload chunk at `offset`. Returns the number of image
+    // bytes sent, or null on a hard failure (already reported). Handles the
+    // first-chunk metadata and the fast-mode "chunk too large" auto-downgrade.
+    async _sendChunk(offset) {
+        const nmpOverhead = 8;
+        while (true) {
+            const message = { data: new Uint8Array(), off: offset };
+            if (offset === 0) {
+                message.len = this._uploadImage.byteLength;
+                message.sha = new Uint8Array(await this._hash(this._uploadImage));
+            }
+            const maxChunkSize = this._fast ? this._fastChunkCap : this._maxChunkSize;
+            const mtu = this._fast ? this._fastMtu : this._mtu;
+            const mtuBasedLength = mtu - CBOR.encode(message).byteLength - nmpOverhead;
+            const length = Math.min(mtuBasedLength, maxChunkSize);
+            message.data = new Uint8Array(this._uploadImage.slice(offset, offset + length));
+
+            const chunkDelay = this._fast ? this._fastChunkDelay : this._chunkDelay;
+            if (chunkDelay > 0) await new Promise(resolve => setTimeout(resolve, chunkDelay));
+
+            try {
+                await this._sendMessage(MGMT_OP_WRITE, MGMT_GROUP_ID_IMAGE, IMG_MGMT_ID_UPLOAD, message);
+                return message.data.byteLength;
+            } catch (e) {
+                // Almost always the chunk exceeding the device's negotiated MTU.
+                // In fast mode, drop to the conservative chunk size and retry.
+                if (this._fast && this._fastChunkCap > this._maxChunkSize) {
+                    this._fastChunkCap = this._maxChunkSize;
+                    this._logger.info('Chunk too large for this device; falling back to smaller chunks.');
+                    continue;
+                }
+                this._uploadIsInProgress = false;
+                if (this._uploadTimeout) clearTimeout(this._uploadTimeout);
+                this._logger.error(`Upload write failed: ${e.message || e}`);
+                if (this._imageUploadErrorCallback) {
+                    this._imageUploadErrorCallback({ error: `Upload failed: ${e.message || e}` });
+                }
+                return null;
+            }
+        }
+    }
+    async cmdUpload(image, slot = 0, options = {}) {
         if (this._uploadIsInProgress) {
             this._logger.error('Upload is already in progress.');
             return;
@@ -343,6 +456,19 @@ class MCUManager {
         this._uploadOffset = 0;
         this._uploadImage = image;
         this._uploadSlot = slot;
+
+        // Fast-upload preset; reset the per-upload chunk auto-downgrade and the
+        // windowed-send state. Fast mode pipelines several chunks; otherwise the
+        // upload stays strictly sequential (window 1).
+        this._fast = !!options.fast;
+        this._fastChunkCap = this._fastMaxChunkSize;
+        this._window = this._fast ? this._fastWindow : 1;
+        this._sendOffset = 0;
+        this._pumping = false;
+
+        // Throughput tracking, for the live speed / ETA readout.
+        this._uploadStartTime = Date.now();
+        this._speedSamples = [];
 
         // Reset timeout tracking
         this._consecutiveTimeouts = 0;
@@ -397,7 +523,7 @@ class MCUManager {
         const view = new DataView(image);
 
         // check header length
-        if (view.length < 32) {
+        if (view.byteLength < 32) {
             throw new Error('Invalid image (too short file)');
         }
 
@@ -420,7 +546,7 @@ class MCUManager {
         info.imageSize = imageSize;
 
         // check image size is correct
-        if (view.length < imageSize + headerSize) {
+        if (view.byteLength < imageSize + headerSize) {
             throw new Error('Invalid image (wrong image size)');
         }
 
@@ -438,11 +564,15 @@ class MCUManager {
         let offset = headerSize + imageSize;
         let tlv_end = offset;
 
-        // Only if it was indicated that there were protected TLVs
+        // Protected TLV area (included in the hash), if the header declared one.
         if (protected_tlv_length > 0) {
+            // It must actually fit in the file.
+            if (offset + protected_tlv_length > view.byteLength) {
+                throw new Error('Invalid image (wrong protected TLV area size)');
+            }
             // Verify the protected TLV magic bytes are valid.
             if (view.getUint16(offset, true) !== 0x6908) {
-                throw new Error( `Expected protected TLV magic number. (0x${offset.toString(16)}: 0x${view.getUint16(offset, true).toString(16)})`);
+                throw new Error(`Expected protected TLV magic number. (0x${offset.toString(16)}: 0x${view.getUint16(offset, true).toString(16)})`);
             }
 
             // Find the end of the protected TLV region
@@ -454,16 +584,19 @@ class MCUManager {
             offset = tlv_end;
         }
 
-        // The non-protected TLV region must be here.
-        if (view.getUint16(offset, true) !== 0x6907) {
-            throw new Error(`Expected TLV magic number. (0x${offset.toString(16)}: 0x${view.getUint16(offset, true).toString(16)})`);
-        }
-
-        // Also include the non-protected TLVs in the tags map.
-        // Assume there are no overlapping tag Ids.
-        tlv_end = view.getUint16(offset + 2, true) + offset;
-        for (let tlv of this._extractTlvs(view.buffer.slice(offset + 4, tlv_end))) {
-            info.tags[tlv.tag] = tlv.value;
+        // Non-protected TLV area, if present. A real firmware always carries one
+        // (it holds the image hash), but a minimal/synthetic image may omit it —
+        // parse it when there's room, otherwise return the header info we have.
+        if (offset + 4 <= view.byteLength) {
+            if (view.getUint16(offset, true) !== 0x6907) {
+                throw new Error(`Expected TLV magic number. (0x${offset.toString(16)}: 0x${view.getUint16(offset, true).toString(16)})`);
+            }
+            // Also include the non-protected TLVs in the tags map.
+            // Assume there are no overlapping tag Ids.
+            tlv_end = view.getUint16(offset + 2, true) + offset;
+            for (let tlv of this._extractTlvs(view.buffer.slice(offset + 4, tlv_end))) {
+                info.tags[tlv.tag] = tlv.value;
+            }
         }
 
         // If the image hash tag is present, verify it matches what was calculated earlier.

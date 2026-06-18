@@ -463,7 +463,7 @@ describe('MCUManager', () => {
       await manager._uploadNext();
 
       expect(manager._sendMessage).toHaveBeenCalled();
-      expect(manager._imageUploadProgressCallback).toHaveBeenCalledWith({ percentage: 0 });
+      expect(manager._imageUploadProgressCallback).toHaveBeenCalledWith(expect.objectContaining({ percentage: 0 }));
     });
 
     test('_uploadNext should report progress correctly', async () => {
@@ -476,7 +476,7 @@ describe('MCUManager', () => {
 
       await manager._uploadNext();
 
-      expect(manager._imageUploadProgressCallback).toHaveBeenCalledWith({ percentage: 50 });
+      expect(manager._imageUploadProgressCallback).toHaveBeenCalledWith(expect.objectContaining({ percentage: 50 }));
     });
   });
 

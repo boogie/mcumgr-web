@@ -4,12 +4,16 @@ This tool is the Web Bluetooth version of MCU Manager that enables a user to com
 
 The main focus is implementing firmware updates via Web Bluetooth, however other commands might be supported as well.
 
+> Prefer a command line? **[mcumgr-mac](https://github.com/boogie/mcumgr-mac)** is a
+> native macOS CLI version of the same tool.
+
 ## Features
 
 - **Firmware Upload**: Upload MCUboot-formatted firmware images over Bluetooth LE
+- **Fast Upload** (optional): larger chunks and pipelined writes for much faster transfers, with automatic fallback for devices that need conservative settings
 - **Image Management**: Test, confirm, and erase firmware images
 - **Device Control**: Reset device, send echo commands
-- **Progress Tracking**: Real-time upload progress updates
+- **Progress Tracking**: Real-time progress with live transfer speed and a time-remaining estimate
 - **Auto-Reconnect**: Automatic reconnection and upload resumption on connection loss
 - **Image Validation**: Pre-upload validation of MCUboot image format
 
